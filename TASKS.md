@@ -33,7 +33,7 @@ Status: [ ] todo, [~] in progress, [x] done.
   permission changes via the distributed notification (no polling). Quit button.
   - Accept (manual): grant permission, status flips without restart. Rebuild with
     `build-app.sh`, relaunch: still granted (identity persistence).
-- [~] M0.7 GitHub Actions on a macOS 15 runner: build, test, `verify.sh` (non-runtime
+- [x] M0.7 GitHub Actions on a macOS 15 runner: build, test, `verify.sh` (non-runtime
   checks). Add LICENSE (GPL-3.0-or-later, to match Hector).
   - Accept: workflow green on a push.
 

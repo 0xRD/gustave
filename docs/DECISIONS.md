@@ -58,7 +58,10 @@ ignores exactly those two linker warnings. Any other warning fails it.
 
 ## Verified on device
 
-(none yet)
+- 2026-11-01, macOS 26.6: codesign refuses an untrusted self-signed identity ("no identity
+  found"), so the trust step in `scripts/make-cert.sh` is required.
+- 2026-11-01, macOS 26.6: M0 shell, ad hoc build. Launches with no permission prompt. Idle
+  over 9 s of `top`: 0.0 percent CPU, 0 idle wakeups, 19 MB, no internet sockets.
 
 ## Open questions
 
