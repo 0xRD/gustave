@@ -96,9 +96,13 @@ emoji family renders as separate emoji. That is accepted: titles are for recogni
 
 - 2026-11-01, macOS 26.6: after a reset and a new grant on the local identity, the status
   flipped without a restart and the grant survived a rebuild that changed the binary.
+- 2026-11-01, macOS 26.6: an active `cgSessionEventTap` on scroll-wheel events is created
+  with Accessibility alone, with no Input Monitoring prompt. `CGGetEventTapList` shows one
+  enabled tap with mask 0x400000 while a toggle is on at launch, and none while both are
+  off. Removal by toggling at runtime, and scroll behaviour, are still manual checks.
 
 ## Open questions
 
 - How to obtain MRU window order without private APIs (SPEC F2, approaches A, B, C).
-- Which permission an active scroll event tap needs on macOS 15 and later.
+- Whether an active scroll tap behaves the same on macOS 15. Accessibility is enough on 26.6.
 - Whether Dock hover works reliably with magnification and auto-hide.

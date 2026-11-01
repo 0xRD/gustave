@@ -1,7 +1,9 @@
 import SwiftUI
 
 struct SettingsView: View {
+    @ObservedObject var store: SettingsStore
     @ObservedObject var permission: AccessibilityPermission
+    @ObservedObject var scrollInverter: ScrollInverter
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -15,6 +17,19 @@ struct SettingsView: View {
                     Button("Open Settings") { permission.openSystemSettings() }
                 }
             }
+
+            Divider()
+
+            VStack(alignment: .leading, spacing: 8) {
+                Toggle("Invert mouse scrolling", isOn: $store.settings.invertMouseScroll)
+                Toggle("Invert trackpad scrolling", isOn: $store.settings.invertTrackpadScroll)
+                if scrollInverter.isUnavailable {
+                    Text("Scroll inversion is unavailable.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .disabled(!permission.isGranted)
 
             Divider()
 

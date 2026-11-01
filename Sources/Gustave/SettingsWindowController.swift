@@ -5,9 +5,9 @@ import SwiftUI
 final class SettingsWindowController {
     private let window: NSWindow
 
-    init(permission: AccessibilityPermission) {
+    init(store: SettingsStore, permission: AccessibilityPermission, scrollInverter: ScrollInverter) {
         window = NSWindow(contentViewController: NSHostingController(
-            rootView: SettingsView(permission: permission)
+            rootView: SettingsView(store: store, permission: permission, scrollInverter: scrollInverter)
         ))
         window.title = "Gustave"
         window.styleMask = [.titled, .closable]
