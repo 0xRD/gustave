@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="1024" height="1024">
+  <defs>
+    <clipPath id="tile"><rect width="512" height="512" rx="112"/></clipPath>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#d9efe8"/>
+      <stop offset="1" stop-color="#f7f3ea"/>
+    </linearGradient>
+  </defs>
+
+  <g clip-path="url(#tile)">
+    <rect width="512" height="512" fill="url(#sky)"/>
+
+    <!-- sun -->
+    <circle cx="378" cy="146" r="56" fill="#f4d58a"/>
+
+    <!-- Gustave, peeking over the wall -->
+    <g stroke="#2b2540" stroke-width="8" stroke-linejoin="round" stroke-linecap="round">
+      <!-- face -->
+      <ellipse cx="256" cy="292" rx="94" ry="104" fill="#f6e3cf"/>
+      <!-- cap dome -->
+      <path d="M156 240 C148 168 208 134 270 138 C338 142 374 190 358 240 Z" fill="#3f8f8a"/>
+      <!-- cap brim -->
+      <rect x="146" y="230" width="226" height="26" rx="13" fill="#2f726e"/>
+      <!-- cap button -->
+      <circle cx="262" cy="140" r="9" fill="#2f726e"/>
+    </g>
+
+    <!-- eyes -->
+    <circle cx="220" cy="290" r="11" fill="#2b2540"/>
+    <circle cx="292" cy="290" r="11" fill="#2b2540"/>
+    <circle cx="224" cy="286" r="3.5" fill="#fff"/>
+    <circle cx="296" cy="286" r="3.5" fill="#fff"/>
+
+    <!-- cheeks -->
+    <circle cx="186" cy="308" r="13" fill="#f2b8a6" opacity="0.7"/>
+    <circle cx="326" cy="308" r="13" fill="#f2b8a6" opacity="0.7"/>
+
+    <!-- mustache -->
+    <path d="M256 318 C238 298 204 306 194 326 C212 320 232 326 256 334 C280 326 300 320 318 326 C308 306 274 298 256 318 Z"
+          fill="#6b4a3a" stroke="#2b2540" stroke-width="6" stroke-linejoin="round"/>
+
+    <!-- wall -->
+    <rect y="348" width="512" height="164" fill="#e3d3b5"/>
+    <g stroke="#c9b693" stroke-width="3" fill="none">
+      <path d="M0 392H512 M0 436H512 M0 480H512"/>
+      <path d="M96 348V392 M208 348V392 M320 348V392 M432 348V392"/>
+      <path d="M48 392V436 M160 392V436 M272 392V436 M384 392V436 M496 392V436"/>
+      <path d="M96 436V480 M208 436V480 M320 436V480 M432 436V480"/>
+      <path d="M48 480V512 M160 480V512 M272 480V512 M384 480V512 M496 480V512"/>
+    </g>
+    <path d="M0 348H512" stroke="#2b2540" stroke-width="6"/>
+  </g>
+</svg>

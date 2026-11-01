@@ -1,0 +1,60 @@
+# Decisions
+
+Short ADR log. Add an entry whenever a behaviour is verified on device or a rule needs
+an exception. Newest at the bottom of each section.
+
+## Accepted
+
+### D1. Separate app, not part of Hector
+Hector is a security tool with a root helper and a published threat model, and it makes
+network requests (database and hosts list downloads). Gustave needs Accessibility, so
+merging them would give any Hector compromise Accessibility, and would give up
+Gustave's no-network property. Separate processes also keep release cadences apart and
+let Hector observe Gustave (event taps, connections). Share conventions and CI
+patterns, not binaries.
+
+### D2. Accessibility only, no Screen Recording
+No thumbnails. Window titles, state and controls all come from Accessibility. This
+removes the most expensive and most privacy-sensitive capability of DockDoor.
+
+### D3. No network, no updater, no dependencies
+Update path is "pull and rebuild" or a checksummed release. This keeps the supply chain
+to Apple's SDK.
+
+### D4. No private APIs
+Consequence: windows on other Spaces are not listed. Revisit only with explicit user
+approval.
+
+### D5. Self-signed stable identity
+Accessibility trust is tied to the code signature. An ad-hoc signature changes on every
+build and, as far as we know, resets the grant. A self-signed identity with the bundle
+id pinned keeps the designated requirement stable. No paid Apple Developer account.
+Windows-style signing (Authenticode, SignPath) is unrelated and not needed here.
+Verify on device in M0.6.
+
+### D6. Plain AppKit entry point, accessory app
+No SwiftUI `App` lifecycle, no menu bar item. Reopening the app shows settings.
+SwiftUI is used for views only.
+
+### D7. Name and mascot
+Gustave, a flat-capped, mustachioed neighbour peeking over the same wall and sun as
+Hector. Names checked against GitHub repository names and Homebrew core and cask on
+2026-11-01. Still to check before publishing: crates.io, npm, domains, trademarks.
+
+### D8. Switcher behaves like Windows Alt+Tab
+Decided 2026-11-01. All standard windows of all apps on the current Space, one entry per
+window, most recently used first, quick press toggles the two most recent windows. Not
+the macOS Cmd+` model (frontmost app only). Windows orders its list by z-order, with
+minimized windows sent to the back. The consequence is that Gustave needs a reliable MRU
+order across apps, which macOS does not expose publicly: see `SPEC.md`, F2 and task
+M4.1.
+
+## Verified on device
+
+(none yet)
+
+## Open questions
+
+- How to obtain MRU window order without private APIs (SPEC F2, approaches A, B, C).
+- Which permission an active scroll event tap needs on macOS 15 and later.
+- Whether Dock hover works reliably with magnification and auto-hide.
