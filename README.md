@@ -4,8 +4,9 @@ A tiny, offline macOS companion for Hector. Hover an app in the Dock to list its
 windows, switch windows with Option+Tab, and invert scrolling per device. It needs
 Accessibility and nothing else.
 
-Status: **project scaffold only, no application code yet.** Implementation is driven by
-`TASKS.md` with Claude Code, see `docs/KICKOFF_PROMPT.md`.
+Status: **foundations only (M0): an accessory app with a settings window and the
+Accessibility status. No features yet.** Implementation is driven by `TASKS.md` with
+Claude Code, see `docs/KICKOFF_PROMPT.md`.
 
 No Screen Recording, no network, no dependencies, no auto-update. See
 [SECURITY.md](SECURITY.md) for the threat model and [SPEC.md](SPEC.md) for behaviour.
@@ -21,21 +22,21 @@ No Screen Recording, no network, no dependencies, no auto-update. See
 | `docs/DECISIONS.md` | Decision log and things verified on device |
 | `docs/KICKOFF_PROMPT.md` | First prompt for a Claude Code session |
 | `Package.swift` | SwiftPM manifest, zero dependencies, Core plus app target |
-| `Sources/GustaveCore` | Pure logic (empty) |
-| `Sources/Gustave` | AppKit and Accessibility glue (empty) |
-| `Tests/GustaveCoreTests` | Core unit tests (empty) |
-| `scripts/` | Cert, build, verify, icon helpers (to be written in M0) |
+| `Sources/GustaveCore` | Pure logic |
+| `Sources/Gustave` | AppKit and Accessibility glue |
+| `Tests/GustaveCoreTests` | Core unit tests |
+| `scripts/` | Cert, build, verify, icon and quality gate helpers |
 | `Resources/` | `Info.plist`, `icon.svg`, `icon-1024.png` |
 
-## Planned build flow (after M0)
+## Build
 
 ```sh
-scripts/make-cert.sh     # once: stable local signing identity
-swift test
+scripts/make-cert.sh     # once: stable local signing identity, macOS asks to confirm
+scripts/check.sh         # release build with zero warnings, unit tests
 scripts/build-app.sh     # builds and signs build/Gustave.app
 scripts/verify.sh        # security checks
 ```
 
-Requires macOS 15, Apple silicon, Xcode 16 command line tools.
+Requires macOS 15, Apple silicon, Xcode 16 or Command Line Tools.
 
-License: intended GPL-3.0-or-later to match Hector. LICENSE is added in M0.7.
+License: GPL-3.0-or-later, see [LICENSE](LICENSE).

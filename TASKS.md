@@ -27,13 +27,13 @@ Status: [ ] todo, [~] in progress, [x] done.
 - [~] M0.5 `scripts/make-icns.sh`: build `Resources/Gustave.icns` from
   `Resources/icon-1024.png` with `sips` and `iconutil`.
   - Accept: the built app shows the icon in Finder.
-- [ ] M0.6 Accessory app shell: AppKit entry point, accessory activation policy, a
+- [~] M0.6 Accessory app shell: AppKit entry point, accessory activation policy, a
   settings window shown on first launch, when Accessibility is missing, and on reopen.
   Accessibility status row with request and open-settings buttons, reacting to
   permission changes via the distributed notification (no polling). Quit button.
   - Accept (manual): grant permission, status flips without restart. Rebuild with
     `build-app.sh`, relaunch: still granted (identity persistence).
-- [ ] M0.7 GitHub Actions on a macOS 15 runner: build, test, `verify.sh` (non-runtime
+- [~] M0.7 GitHub Actions on a macOS 15 runner: build, test, `verify.sh` (non-runtime
   checks). Add LICENSE (GPL-3.0-or-later, to match Hector).
   - Accept: workflow green on a push.
 
