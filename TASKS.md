@@ -39,7 +39,7 @@ Status: [ ] todo, [~] in progress, [x] done.
 
 ## M1. Core logic (all pure, all unit tested, strict Swift 6)
 
-- [ ] M1.1 `Settings` and a tolerant JSON codec (missing keys default, unknown keys
+- [x] M1.1 `Settings` and a tolerant JSON codec (missing keys default, unknown keys
   ignored, garbage decodes to defaults).
 - [ ] M1.2 `displayTitle`: bound the work on huge input, strip control and invisible
   format characters (bidi overrides, zero width), collapse whitespace, truncate with an
