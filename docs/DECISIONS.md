@@ -67,6 +67,17 @@ commit. Moving between a local and a release build needs a new grant. Self-signi
 satisfy Gatekeeper, so building from source stays the primary path. To verify when
 implementing: how to trust the certificate on a hosted runner.
 
+### D11. Features are off until turned on
+Decided 2026-11-01. SPEC does not set defaults. A new install monitors nothing and does not
+take Option+Tab or scroll events from apps that already handle them, such as DockDoor and
+Scroll Reverser. The user turns on each feature in settings.
+
+### D12. Title sanitising goes slightly past M1.2
+Decided 2026-11-01. `DisplayTitle` also removes default-ignorable, private use and
+unassigned scalars, and keeps at most two consecutive combining marks, because each of
+these can hide or distort text in a row. Removing joiners and variation selectors means an
+emoji family renders as separate emoji. That is accepted: titles are for recognition only.
+
 ## Verified on device
 
 - 2026-11-01, macOS 26.6: codesign refuses an untrusted self-signed identity ("no identity

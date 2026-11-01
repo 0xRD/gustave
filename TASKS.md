@@ -41,7 +41,7 @@ Status: [ ] todo, [~] in progress, [x] done.
 
 - [x] M1.1 `Settings` and a tolerant JSON codec (missing keys default, unknown keys
   ignored, garbage decodes to defaults).
-- [ ] M1.2 `displayTitle`: bound the work on huge input, strip control and invisible
+- [x] M1.2 `displayTitle`: bound the work on huge input, strip control and invisible
   format characters (bidi overrides, zero width), collapse whitespace, truncate with an
   ellipsis, empty becomes "Untitled".
 - [ ] M1.3 Dock geometry: infer Dock edge and thickness from `frame` and `visibleFrame`,
