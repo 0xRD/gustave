@@ -11,20 +11,20 @@ Status: [ ] todo, [~] in progress, [x] done.
   `Gustave` and tests, zero dependencies. Add the minimum sources so `swift build`
   and `swift test` succeed.
   - Accept: both commands succeed with zero warnings.
-- [ ] M0.2 `scripts/make-cert.sh`: create a self-signed code signing identity
+- [~] M0.2 `scripts/make-cert.sh`: create a self-signed code signing identity
   ("Gustave Local Signing") in the login keychain, idempotent, trusted for code signing.
   - Accept: `security find-identity -v -p codesigning` lists it. Re-running does nothing.
-- [ ] M0.3 `scripts/build-app.sh`: build release, assemble `build/Gustave.app` from
+- [~] M0.3 `scripts/build-app.sh`: build release, assemble `build/Gustave.app` from
   `Resources/Info.plist` (and icon if present), sign with the identity, hardened
   runtime, `--identifier io.github.0xrd.gustave`, no entitlements.
   - Accept: `codesign --verify --strict` passes. Designated requirement printed and
     identical across two consecutive builds.
-- [ ] M0.4 `scripts/verify.sh`: security posture checks. Valid signature, hardened
+- [x] M0.4 `scripts/verify.sh`: security posture checks. Valid signature, hardened
   runtime, no entitlements, only system and Swift runtime libraries (`otool -L`), no
   networking symbols (`nm -u`, heuristic), and if the app is running, no internet
   sockets (`lsof -i`). Non-zero exit on failure.
   - Accept: passes on a clean build, fails when a networking symbol is introduced.
-- [ ] M0.5 `scripts/make-icns.sh`: build `Resources/Gustave.icns` from
+- [~] M0.5 `scripts/make-icns.sh`: build `Resources/Gustave.icns` from
   `Resources/icon-1024.png` with `sips` and `iconutil`.
   - Accept: the built app shows the icon in Finder.
 - [ ] M0.6 Accessory app shell: AppKit entry point, accessory activation policy, a

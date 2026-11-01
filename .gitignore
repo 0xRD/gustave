@@ -5,3 +5,4 @@ build/
 .DS_Store
 *.p12
 *.pem
+Resources/Gustave.icns
