@@ -46,7 +46,7 @@ Status: [ ] todo, [~] in progress, [x] done.
   ellipsis, empty becomes "Untitled".
 - [x] M1.3 Dock geometry: infer Dock edge and thickness from `frame` and `visibleFrame`,
   O(1) "near Dock edge" gate, AppKit to Accessibility coordinate conversion.
-- [ ] M1.4 Scroll rule: device classification from the continuous flag, per-device
+- [x] M1.4 Scroll rule: device classification from the continuous flag, per-device
   inversion decision from settings.
   - Accept for M1: `swift test` covers every branch, including edge cases (auto-hide
     with no inset, negative coordinates on secondary displays, empty and enormous titles).

@@ -4,8 +4,8 @@ A tiny, offline macOS companion for Hector. Hover an app in the Dock to list its
 windows, switch windows with Option+Tab, and invert scrolling per device. It needs
 Accessibility and nothing else.
 
-Status: **foundations only (M0): an accessory app with a settings window and the
-Accessibility status. No features yet.** Implementation is driven by `TASKS.md` with
+Status: **foundations and core logic only (M0, M1): an accessory app with a settings
+window and the Accessibility status. No features yet.** Implementation is driven by `TASKS.md` with
 Claude Code, see `docs/KICKOFF_PROMPT.md`.
 
 No Screen Recording, no network, no dependencies, no auto-update. See
