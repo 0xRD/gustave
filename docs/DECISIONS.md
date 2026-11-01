@@ -63,6 +63,15 @@ ignores exactly those two linker warnings. Any other warning fails it.
 - 2026-11-01, macOS 26.6: M0 shell, ad hoc build. Launches with no permission prompt. Idle
   over 9 s of `top`: 0.0 percent CPU, 0 idle wakeups, 19 MB, no internet sockets.
 
+- 2026-11-01, macOS 26.6: do not run an ad hoc build on a Mac that uses the local identity.
+  After ad hoc test launches, granting the signed build left `tccd` checking an old cdhash
+  requirement, and Accessibility stayed denied although System Settings showed it on. The
+  log (`/usr/bin/log`, process `tccd`) shows status -67050 on that cdhash. The ad hoc origin
+  is inferred, not proven. Recovery: `tccutil reset Accessibility io.github.0xrd.gustave`,
+  then grant again.
+- 2026-11-01, macOS 26.6: `com.apple.accessibility.api` reached the app while it was
+  inactive, with the default suspension behaviour.
+
 ## Open questions
 
 - How to obtain MRU window order without private APIs (SPEC F2, approaches A, B, C).

@@ -2,7 +2,8 @@
 # Builds and signs build/Gustave.app. The designated requirement pins the bundle id and
 # the certificate, so it does not change between builds and the Accessibility grant stays.
 #
-# GUSTAVE_SIGN_IDENTITY=- signs ad hoc, for CI only. GUSTAVE_KEYCHAIN selects a keychain.
+# GUSTAVE_SIGN_IDENTITY=- signs ad hoc, for CI only: launching such a build can break the
+# Accessibility grant on this Mac (docs/DECISIONS.md). GUSTAVE_KEYCHAIN selects a keychain.
 set -euo pipefail
 cd "${0:A:h}/.."
 

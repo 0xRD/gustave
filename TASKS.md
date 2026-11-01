@@ -11,10 +11,10 @@ Status: [ ] todo, [~] in progress, [x] done.
   `Gustave` and tests, zero dependencies. Add the minimum sources so `swift build`
   and `swift test` succeed.
   - Accept: both commands succeed with zero warnings.
-- [~] M0.2 `scripts/make-cert.sh`: create a self-signed code signing identity
+- [x] M0.2 `scripts/make-cert.sh`: create a self-signed code signing identity
   ("Gustave Local Signing") in the login keychain, idempotent, trusted for code signing.
   - Accept: `security find-identity -v -p codesigning` lists it. Re-running does nothing.
-- [~] M0.3 `scripts/build-app.sh`: build release, assemble `build/Gustave.app` from
+- [x] M0.3 `scripts/build-app.sh`: build release, assemble `build/Gustave.app` from
   `Resources/Info.plist` (and icon if present), sign with the identity, hardened
   runtime, `--identifier io.github.0xrd.gustave`, no entitlements.
   - Accept: `codesign --verify --strict` passes. Designated requirement printed and
