@@ -40,4 +40,4 @@ codesign --force --sign "$identity" --options runtime --identifier "$bundle_id" 
     "${sign_args[@]}" "$app"
 
 codesign --verify --strict "$app"
-codesign --display --requirements - "$app" 2>&1 | grep '^designated'
+codesign --display --requirements - "$app" 2>&1 | grep 'designated =>'
