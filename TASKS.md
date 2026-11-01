@@ -7,7 +7,7 @@ Status: [ ] todo, [~] in progress, [x] done.
 
 ## M0. Foundations
 
-- [ ] M0.1 Package skeleton builds. `Package.swift` already declares `GustaveCore`,
+- [x] M0.1 Package skeleton builds. `Package.swift` already declares `GustaveCore`,
   `Gustave` and tests, zero dependencies. Add the minimum sources so `swift build`
   and `swift test` succeed.
   - Accept: both commands succeed with zero warnings.

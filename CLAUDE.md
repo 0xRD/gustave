@@ -48,7 +48,7 @@ Startup checklist, every session, before touching code:
 4. Say which task you will do and which acceptance criteria apply.
 
 Quality gate before each commit (all must pass):
-1. `swift build -c release` with zero warnings.
+1. `swift build -c release` with zero warnings (`scripts/check.sh` runs 1 and 2).
 2. `swift test` passes.
 3. `scripts/verify.sh` passes (once it exists, M0).
 4. Acceptance criteria of the task are met, including any manual checks. Manual checks

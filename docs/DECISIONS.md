@@ -49,6 +49,13 @@ minimized windows sent to the back. The consequence is that Gustave needs a reli
 order across apps, which macOS does not expose publicly: see `SPEC.md`, F2 and task
 M4.1.
 
+### D9. Swift Testing, and a gate script for Command Line Tools
+Decided 2026-11-01. Command Line Tools ship Swift Testing but not XCTest, so unit tests
+use Swift Testing. With Swift 6.4 and no Xcode, SwiftPM does not find the Testing macro
+plugin and passes two linker search paths that do not exist. Both come from the
+toolchain, not from Gustave. `scripts/check.sh` is the gate: it adds the plugin path and
+ignores exactly those two linker warnings. Any other warning fails it.
+
 ## Verified on device
 
 (none yet)
