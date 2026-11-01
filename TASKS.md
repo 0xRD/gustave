@@ -27,7 +27,7 @@ Status: [ ] todo, [~] in progress, [x] done.
 - [~] M0.5 `scripts/make-icns.sh`: build `Resources/Gustave.icns` from
   `Resources/icon-1024.png` with `sips` and `iconutil`.
   - Accept: the built app shows the icon in Finder.
-- [~] M0.6 Accessory app shell: AppKit entry point, accessory activation policy, a
+- [x] M0.6 Accessory app shell: AppKit entry point, accessory activation policy, a
   settings window shown on first launch, when Accessibility is missing, and on reopen.
   Accessibility status row with request and open-settings buttons, reacting to
   permission changes via the distributed notification (no polling). Quit button.
@@ -98,3 +98,7 @@ Status: [ ] todo, [~] in progress, [x] done.
 - [ ] M5.3 Launch at login, silent start, final settings polish.
 - [ ] M5.4 README update, release checklist, checksummed GitHub release, optional
   Homebrew tap cask (self-signed, build from source stays primary).
+- [ ] M5.5 When the repository is public: sign tagged releases in GitHub Actions with a
+  dedicated release certificate stored as a secret (see `docs/DECISIONS.md`, D10).
+  - Accept: a tag produces a signed build, `scripts/verify.sh` passes on it, and the
+    secret is available only to the protected release environment.

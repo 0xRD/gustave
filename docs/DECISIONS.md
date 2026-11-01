@@ -56,6 +56,17 @@ plugin and passes two linker search paths that do not exist. Both come from the
 toolchain, not from Gustave. `scripts/check.sh` is the gate: it adds the plugin path and
 ignores exactly those two linker warnings. Any other warning fails it.
 
+### D10. Release signing in GitHub Actions, once the repository is public
+Planned 2026-11-01, not implemented. Public repositories get free standard runners, which
+removes the Actions minutes limit. Whoever holds the signing key can build a binary that
+inherits the Accessibility grant without a prompt, so the key is never shared with local
+builds. Releases use a separate certificate, with the local identity staying only in the
+login keychain. The secret lives in a protected GitHub environment with required review,
+used only by a workflow triggered by tags, never on `pull_request`, with actions pinned by
+commit. Moving between a local and a release build needs a new grant. Self-signing does not
+satisfy Gatekeeper, so building from source stays the primary path. To verify when
+implementing: how to trust the certificate on a hosted runner.
+
 ## Verified on device
 
 - 2026-11-01, macOS 26.6: codesign refuses an untrusted self-signed identity ("no identity
@@ -71,6 +82,9 @@ ignores exactly those two linker warnings. Any other warning fails it.
   then grant again.
 - 2026-11-01, macOS 26.6: `com.apple.accessibility.api` reached the app while it was
   inactive, with the default suspension behaviour.
+
+- 2026-11-01, macOS 26.6: after a reset and a new grant on the local identity, the status
+  flipped without a restart and the grant survived a rebuild that changed the binary.
 
 ## Open questions
 
