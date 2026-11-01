@@ -44,7 +44,7 @@ Status: [ ] todo, [~] in progress, [x] done.
 - [x] M1.2 `displayTitle`: bound the work on huge input, strip control and invisible
   format characters (bidi overrides, zero width), collapse whitespace, truncate with an
   ellipsis, empty becomes "Untitled".
-- [ ] M1.3 Dock geometry: infer Dock edge and thickness from `frame` and `visibleFrame`,
+- [x] M1.3 Dock geometry: infer Dock edge and thickness from `frame` and `visibleFrame`,
   O(1) "near Dock edge" gate, AppKit to Accessibility coordinate conversion.
 - [ ] M1.4 Scroll rule: device classification from the continuous flag, per-device
   inversion decision from settings.
