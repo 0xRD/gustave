@@ -23,6 +23,7 @@ struct DockHover {
     /// AppKit coordinates.
     let iconFrame: Rect
     let edge: DockEdge
+    /// Where the panel may go: the screen, below the menu bar.
     let screenFrame: Rect
 }
 
@@ -32,10 +33,15 @@ struct DockHover {
 final class DockHoverObserver {
     private let onChange: (DockHoverEvent) -> Void
 
+    /// A new Dock answers Accessibility only after a moment.
+    private static let attachRetries = 5
+    private static let attachRetryDelay: TimeInterval = 0.5
+
     private var isRunning = false
     private var observer: AXObserver?
     private var list: AXElement?
-    private var workspaceObservers: [NSObjectProtocol] = []
+    private var attachedDockPID: pid_t?
+    private var runningAppsObservation: NSKeyValueObservation?
     private var current: DockHoverEvent = .outside
     private var generation = 0
 
@@ -46,34 +52,44 @@ final class DockHoverObserver {
     func start() {
         guard !isRunning else { return }
         isRunning = true
-        let center = NSWorkspace.shared.notificationCenter
-        // The Dock restarts when its settings change or it crashes.
-        for name in [NSWorkspace.didLaunchApplicationNotification, NSWorkspace.didTerminateApplicationNotification] {
-            workspaceObservers.append(center.addObserver(forName: name, object: nil, queue: .main) { [weak self] note in
-                let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
-                guard app?.bundleIdentifier == DockProbe.dockBundleIdentifier else { return }
-                MainActor.assumeIsolated { self?.attach() }
-            })
+        // The Dock restarts when its settings change or it crashes. It is a UI element app,
+        // for which launch and quit notifications are not reliably posted, so the list of
+        // running apps is observed instead: an event, not a poll.
+        runningAppsObservation = NSWorkspace.shared.observe(\.runningApplications) { [weak self] _, _ in
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated { self?.dockMayHaveChanged() }
+            }
         }
-        attach()
+        attach(retriesLeft: Self.attachRetries)
     }
 
     func stop() {
         guard isRunning else { return }
         isRunning = false
-        for token in workspaceObservers {
-            NSWorkspace.shared.notificationCenter.removeObserver(token)
-        }
-        workspaceObservers = []
+        runningAppsObservation?.invalidate()
+        runningAppsObservation = nil
         detach()
+        attachedDockPID = nil
         current = .outside
     }
 
-    private func attach() {
+    private static func dockPID() -> pid_t? {
+        NSRunningApplication.runningApplications(withBundleIdentifier: DockProbe.dockBundleIdentifier)
+            .first { !$0.isTerminated }?.processIdentifier
+    }
+
+    private func dockMayHaveChanged() {
+        guard isRunning, Self.dockPID() != attachedDockPID else { return }
+        attach(retriesLeft: Self.attachRetries)
+    }
+
+    private func attach(retriesLeft: Int) {
         detach()
-        guard let dockPID = NSRunningApplication
-            .runningApplications(withBundleIdentifier: DockProbe.dockBundleIdentifier).first?.processIdentifier
-        else { return }
+        guard let dockPID = Self.dockPID() else {
+            attachedDockPID = nil
+            return
+        }
+        attachedDockPID = dockPID
 
         let token = generation
         // The observer lives as long as the app, so an unretained pointer is safe.
@@ -83,7 +99,11 @@ final class DockHoverObserver {
             let subscription = DockProbe.subscribe(dockPID: dockPID, callback: dockSelectionChanged, refcon: refcon)
             DispatchQueue.main.async {
                 MainActor.assumeIsolated {
-                    guard let self, let subscription, token == self.generation, self.isRunning else { return }
+                    guard let self, token == self.generation, self.isRunning else { return }
+                    guard let subscription else {
+                        self.retryAttach(retriesLeft: retriesLeft - 1, token: token)
+                        return
+                    }
                     self.observer = subscription.observer
                     self.list = subscription.list
                     CFRunLoopAddSource(
@@ -93,12 +113,28 @@ final class DockHoverObserver {
         }
     }
 
+    /// A few spaced tries after a Dock start, then nothing until the next change: no polling.
+    private func retryAttach(retriesLeft: Int, token: Int) {
+        guard retriesLeft > 0 else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.attachRetryDelay) { [weak self] in
+            MainActor.assumeIsolated {
+                guard let self, self.isRunning, token == self.generation else { return }
+                self.attach(retriesLeft: retriesLeft)
+            }
+        }
+    }
+
     private func detach() {
         generation += 1
         if let observer {
             CFRunLoopRemoveSource(CFRunLoopGetMain(), AXObserverGetRunLoopSource(observer), .commonModes)
+            // Unsubscribing is a call into the Dock: off the main thread, like every other.
             if let list {
-                AXObserverRemoveNotification(observer, list.raw, kAXSelectedChildrenChangedNotification as CFString)
+                let subscription = DockProbe.Subscription(observer: observer, list: list)
+                AXQueues.dock.async {
+                    AXObserverRemoveNotification(
+                        subscription.observer, subscription.list.raw, kAXSelectedChildrenChangedNotification as CFString)
+                }
             }
         }
         observer = nil
@@ -140,10 +176,14 @@ final class DockHoverObserver {
         guard let screen = NSScreen.screens.first(where: { Rect($0.frame).contains(centre) }) else { return nil }
 
         let frame = Rect(screen.frame)
-        let edge = DockGeometry.placement(frame: frame, visibleFrame: Rect(screen.visibleFrame))?.edge
+        let visible = Rect(screen.visibleFrame)
+        let edge = DockGeometry.placement(frame: frame, visibleFrame: visible)?.edge
             ?? DockGeometry.edge(orientation: UserDefaults(suiteName: DockProbe.dockBundleIdentifier)?
                 .string(forKey: "orientation"))
-        return DockHover(app: app, iconFrame: iconFrame, edge: edge, screenFrame: frame)
+        // The full screen at the bottom and sides (an auto-hiding Dock reserves nothing), but
+        // never over the menu bar.
+        let bounds = Rect(x: frame.x, y: frame.y, width: frame.width, height: visible.maxY - frame.y)
+        return DockHover(app: app, iconFrame: iconFrame, edge: edge, screenFrame: bounds)
     }
 
     private func report(_ event: DockHoverEvent) {

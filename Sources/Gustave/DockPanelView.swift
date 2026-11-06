@@ -5,6 +5,9 @@ import SwiftUI
 
 /// What the panel shows. Passed by value so the panel can be measured right after a change.
 struct DockPanelContent {
+    /// The app the rows belong to. Actions use it, never the latest hover, which may
+    /// already be another app.
+    var app: NSRunningApplication?
     var appName = ""
     var icon: NSImage?
     var windows: [AppWindow] = []
@@ -53,7 +56,7 @@ struct DockPanelView: View {
                 .onTapGesture { actions.select(window) }
             }
             if content.windows.count > Self.maxRows {
-                Text(verbatim: "\(content.windows.count - Self.maxRows) more windows")
+                Text(verbatim: Self.moreWindows(content.windows.count - Self.maxRows))
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
                     .padding(.horizontal, 9)
@@ -65,8 +68,13 @@ struct DockPanelView: View {
         .panelBackground()
     }
 
+    static func moreWindows(_ count: Int) -> String {
+        count == 1 ? "1 more window" : "\(count) more windows"
+    }
+
     private var header: some View {
         HStack(spacing: 7) {
+            AppIconView(icon: content.icon)
             Text(verbatim: content.appName)
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(.secondary)

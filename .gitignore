@@ -6,3 +6,4 @@ build/
 *.p12
 *.pem
 Resources/Gustave.icns
+.claude/

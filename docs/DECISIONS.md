@@ -279,6 +279,16 @@ between Spaces, window capture.
 `FocusTracker` now reads the focused window from the frontmost app on each change rather
 than trusting the notification's element, and logs window ids (no titles) at debug level.
 
+### D28. Settings window identity and launch at login
+Decided 2026-11-06 at the user's request ("a small UI that has an identity kind of like
+Hector", "the setting for Gustave to work on startup"). The settings window uses Hector's
+warm canvas, cards, verdict pill and serif title (tokens copied from Hector's design brief,
+no shared code), and Gustave's mark drawn in code on a 24 point grid like Hector's helmet,
+taken from the app icon. Launch at login uses `SMAppService.mainApp`: the system's own
+login item, no helper, no entitlement; its state is read from the system each time the
+window shows and never stored. Registering works best from a copy in /Applications. (D27 is
+reserved for the switcher work done in parallel.)
+
 ## Verified on device
 
 - 2026-11-01, macOS 26.6: codesign refuses an untrusted self-signed identity ("no identity

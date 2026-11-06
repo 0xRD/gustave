@@ -4,6 +4,7 @@ import SwiftUI
 @MainActor
 final class SettingsWindowController {
     private let window: NSWindow
+    private let launchAtLogin = LaunchAtLogin()
 
     init(
         store: SettingsStore,
@@ -13,15 +14,25 @@ final class SettingsWindowController {
     ) {
         window = NSWindow(contentViewController: NSHostingController(
             rootView: SettingsView(
-                store: store, permission: permission, scrollInverter: scrollInverter, switcher: switcher)
+                store: store,
+                permission: permission,
+                scrollInverter: scrollInverter,
+                switcher: switcher,
+                launchAtLogin: launchAtLogin
+            )
         ))
         window.title = "Gustave"
-        window.styleMask = [.titled, .closable]
+        // The canvas runs under the title bar, as in Hector; the window keeps its own chrome.
+        window.styleMask = [.titled, .closable, .fullSizeContentView]
+        window.titlebarAppearsTransparent = true
+        window.titleVisibility = .hidden
+        window.isMovableByWindowBackground = true
         window.isReleasedWhenClosed = false
         window.center()
     }
 
     func show() {
+        launchAtLogin.refresh()
         NSApp.activate()
         window.makeKeyAndOrderFront(nil)
     }

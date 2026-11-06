@@ -43,7 +43,9 @@ public enum DisplayTitle {
         if title.isEmpty {
             return placeholder
         }
-        if title.count > maxCharacters {
+        // A clipped input also ends with an ellipsis, so it may keep one character less.
+        let limit = wasClipped ? maxCharacters - 1 : maxCharacters
+        if title.count > limit {
             return withEllipsis(String(title.prefix(maxCharacters - 1)))
         }
         return wasClipped ? withEllipsis(title) : title

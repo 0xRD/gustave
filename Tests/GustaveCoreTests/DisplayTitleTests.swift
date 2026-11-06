@@ -83,6 +83,14 @@ func emptyAfterCleaningBecomesPlaceholder(raw: String) {
     #expect(DisplayTitle.sanitise("a" + invisible + "tail") == "a…")
 }
 
+@Test func clippedInputNeverExceedsTheLimit() {
+    let raw = String(repeating: "x", count: DisplayTitle.maxCharacters)
+        + String(repeating: "\u{200B}", count: DisplayTitle.inputLimit)
+    let result = DisplayTitle.sanitise(raw)
+    #expect(result.count == DisplayTitle.maxCharacters)
+    #expect(result.hasSuffix("…"))
+}
+
 @Test func inputExactlyAtTheScalarLimitIsNotClipped() {
     let invisible = String(repeating: "\u{200B}", count: DisplayTitle.inputLimit - 1)
     #expect(DisplayTitle.sanitise("a" + invisible) == "a")

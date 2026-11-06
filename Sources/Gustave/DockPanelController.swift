@@ -42,6 +42,9 @@ final class DockPanelController {
     private var pendingShowObservers: [NSObjectProtocol] = []
     private var pendingClose: DispatchWorkItem?
     private var generation = 0
+    /// The generation, readable from the Accessibility queues, so work queued for an older
+    /// hover is skipped instead of run.
+    private let currentGeneration = GenerationToken()
     /// Present only while the panel is visible, to close it the moment it is left behind.
     private var dismissMonitor: Any?
     private var spaceObserver: NSObjectProtocol?
@@ -153,17 +156,25 @@ final class DockPanelController {
     }
 
     private func loadWindows(for hover: DockHover) {
-        generation += 1
+        bumpGeneration()
         let token = generation
+        let current = currentGeneration
         let pid = hover.app.processIdentifier
         let appIsHidden = hover.app.isHidden
         AXQueues.windows.async { [weak self] in
+            guard current.matches(token) else { return }
             let windows = AppWindows.list(pid: pid)
             DispatchQueue.main.async {
                 MainActor.assumeIsolated {
                     guard let self, token == self.generation else { return }
                     if let windows, !windows.isEmpty {
                         self.show(windows, of: hover.app)
+                    } else if windows == nil {
+                        // The app does not answer: no list, rather than the last app's rows.
+                        self.hide()
+                    } else if self.content.app?.processIdentifier != pid {
+                        // Nothing here yet; other Spaces may still bring windows.
+                        self.clearPanel()
                     }
                 }
             }
@@ -171,6 +182,7 @@ final class DockPanelController {
             // never delays the panel or a window action.
             guard let windows else { return }
             AXQueues.otherSpaces.async {
+                guard current.matches(token) else { return }
                 let others = AppWindows.otherSpaces(pid: pid, known: windows, appIsHidden: appIsHidden)
                 DispatchQueue.main.async {
                     MainActor.assumeIsolated {
@@ -189,18 +201,42 @@ final class DockPanelController {
 
     private func show(_ windows: [AppWindow], of app: NSRunningApplication) {
         content = DockPanelContent(
+            app: app,
             appName: DisplayTitle.sanitise(app.localizedName ?? ""),
             icon: app.icon,
             windows: windows
         )
-        highlight.row = nil
         if isPresented {
             place()
         } else {
             isPresented = true
             present()
         }
+        updateHighlightFromPointer()
         installDismissal()
+    }
+
+    /// After the rows change under a still pointer, the row under it is highlighted again,
+    /// so its controls stay usable.
+    private func updateHighlightFromPointer() {
+        guard let frame = requestedFrame, frame.contains(NSEvent.mouseLocation) else {
+            highlight.row = nil
+            return
+        }
+        pointerMovedOnPanel(frame.maxY - NSEvent.mouseLocation.y)
+    }
+
+    /// Closes what is on screen but keeps the hover and the loading in progress.
+    private func clearPanel() {
+        removeDismissal()
+        fadeOut()
+        highlight.row = nil
+        content = DockPanelContent()
+    }
+
+    private func bumpGeneration() {
+        generation += 1
+        currentGeneration.set(generation)
     }
 
     /// Fades in while sliding a few points away from the Dock. The window, not the view,
@@ -271,7 +307,7 @@ final class DockPanelController {
     }
 
     private func hide() {
-        generation += 1
+        bumpGeneration()
         cancelShow()
         cancelClose()
         removeDismissal()
@@ -420,7 +456,7 @@ final class DockPanelController {
     }
 
     private func quit() {
-        let app = hover?.app
+        let app = content.app
         hide()
         app?.terminate()
     }
