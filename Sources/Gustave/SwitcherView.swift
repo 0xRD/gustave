@@ -35,6 +35,7 @@ struct SwitcherView: View {
         }
         .padding(6)
         .frame(width: Self.width)
+        .panelBackground()
     }
 
     private var visibleIndices: [Int] {

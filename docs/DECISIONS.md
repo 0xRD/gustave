@@ -181,6 +181,17 @@ quick press is also caught when Tab comes up with Option already released. Optio
 a hot key registered only during a session. The list appears after 0.12 s, so a quick press
 switches without flashing it. To verify on device: no Input Monitoring or other prompt.
 
+### D21. Public SwiftUI glass for both panels
+Decided 2026-11-06 by the user from live samples over white and black. With an AppKit
+`NSGlassEffectView` (any private variant, including V6), the glass turns light over white
+content but the text inside keeps the dark appearance, so white text disappears. SwiftUI's
+public `.glassEffect(.regular)` stays readable over both. Both panels now draw it themselves
+(`panelBackground()`), with a rounded `.regularMaterial` before macOS 26. This supersedes
+the glass parts of D19: the private `_variant` and `_adaptiveAppearance` keys, the V2, V6
+and V11 choice and its setting are removed. Old settings files that still hold a glass
+value decode as before, the key is ignored. The panel still reports `isKeyWindow` as true
+so materials draw active, as in the sample the user chose.
+
 ## Verified on device
 
 - 2026-11-01, macOS 26.6: codesign refuses an untrusted self-signed identity ("no identity

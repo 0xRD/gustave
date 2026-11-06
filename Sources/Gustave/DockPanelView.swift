@@ -62,6 +62,7 @@ struct DockPanelView: View {
         }
         .padding(DockPanelLayout.padding)
         .frame(width: Self.width)
+        .panelBackground()
     }
 
     private var header: some View {

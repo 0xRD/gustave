@@ -39,18 +39,15 @@ final class WindowSwitcher: ObservableObject {
     private let panel = FloatingPanel()
     private var content = SwitcherContent()
     private var hostingView: FirstMouseHostingView<SwitcherView>!
-    private var materialView: NSView!
 
     init() {
         hostingView = FirstMouseHostingView(rootView: makeView())
-        materialView = FloatingPanel.materialView(around: hostingView)
         let container = NSView()
-        container.addSubview(materialView)
+        container.addSubview(hostingView)
         panel.contentView = container
     }
 
-    func setEnabled(_ enabled: Bool, glass: PanelGlass) {
-        GlassStyle.apply(glass, to: materialView)
+    func setEnabled(_ enabled: Bool) {
         guard enabled != isEnabled else { return }
         isEnabled = enabled
         if enabled {
@@ -260,7 +257,7 @@ final class WindowSwitcher: ObservableObject {
             width: size.width,
             height: size.height
         )
-        materialView.frame = CGRect(origin: .zero, size: frame.size)
+        hostingView.frame = CGRect(origin: .zero, size: frame.size)
         panel.setFrame(frame, display: true)
         panel.invalidateShadow()
     }

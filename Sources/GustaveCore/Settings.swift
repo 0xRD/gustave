@@ -12,8 +12,6 @@ public struct Settings: Equatable, Sendable {
         didSet { dockHoverDelay = Settings.clampedDelay(dockHoverDelay) }
     }
 
-    public var panelGlass = PanelGlass.default
-
     public static let defaultDockHoverDelay = 0.5
     public static let dockHoverDelayRange = 0.0...2.0
 
@@ -27,7 +25,7 @@ public struct Settings: Equatable, Sendable {
 
 extension Settings: Codable {
     private enum CodingKeys: String, CodingKey {
-        case dockListEnabled, switcherEnabled, invertMouseScroll, invertTrackpadScroll, dockHoverDelay, panelGlass
+        case dockListEnabled, switcherEnabled, invertMouseScroll, invertTrackpadScroll, dockHoverDelay
     }
 
     public init(from decoder: any Decoder) throws {
@@ -45,10 +43,6 @@ extension Settings: Codable {
         // Observers do not run inside the type's own initialiser, so clamp here too.
         if let delay = try? container.decodeIfPresent(Double.self, forKey: .dockHoverDelay) {
             dockHoverDelay = Settings.clampedDelay(delay)
-        }
-        if let raw = try? container.decodeIfPresent(Int.self, forKey: .panelGlass),
-           let glass = PanelGlass(rawValue: raw) {
-            panelGlass = glass
         }
     }
 

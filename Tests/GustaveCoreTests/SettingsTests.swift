@@ -79,24 +79,8 @@ func hoverDelayIsClamped(input: Double, expected: Double) {
     #expect(decode(#"{"dockHoverDelay": "slow"}"#).dockHoverDelay == Settings.defaultDockHoverDelay)
 }
 
-@Test func panelGlassDefaultsToVariant6() {
-    #expect(Settings().panelGlass == .variant6)
-    #expect(PanelGlass.default.rawValue == 6)
-}
 
-@Test func panelGlassRoundTripsAsItsVariant() {
-    var settings = Settings()
-    settings.panelGlass = .variant11
-    #expect(String(decoding: settings.encoded(), as: UTF8.self).contains(#""panelGlass":11"#))
-    #expect(Settings.decoded(from: settings.encoded()).panelGlass == .variant11)
-}
-
-@Test(arguments: [#"{"panelGlass": 3}"#, #"{"panelGlass": -1}"#, #"{"panelGlass": 999999}"#, #"{"panelGlass": "6"}"#])
-func unknownPanelGlassDefaults(json: String) {
-    #expect(decode(json).panelGlass == .default)
-}
-
-@Test func onlyTheOfferedVariantsExist() {
-    #expect(PanelGlass.allCases.map(\.rawValue) == [2, 6, 11])
-    #expect(PanelGlass.allCases.map(\.label) == ["V2", "V6", "V11"])
+@Test func aRemovedGlassSettingIsIgnored() {
+    // Older builds saved a glass style; it must not affect anything now.
+    #expect(decode(#"{"panelGlass": 6, "switcherEnabled": true}"#).switcherEnabled)
 }

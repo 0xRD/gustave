@@ -1,5 +1,4 @@
 import AppKit
-import GustaveCore
 import SwiftUI
 
 /// A borderless panel that floats over every Space and never takes focus.
@@ -29,43 +28,9 @@ final class FloatingPanel: NSPanel {
     override var canBecomeKey: Bool { false }
     override var canBecomeMain: Bool { false }
 
-    /// Glass draws a flat, subdued look in windows that are not key. The panel never takes
-    /// keyboard focus (`canBecomeKey` is false); this only makes it draw like a menu does.
+    /// Materials draw a flat, inactive look in windows that are not key. The panel never
+    /// takes keyboard focus (`canBecomeKey` is false); this only makes it draw as active.
     override var isKeyWindow: Bool { true }
-
-    /// Puts `content` on the system material: Liquid Glass from macOS 26, the menu blur
-    /// before it. Both are rounded like a system menu.
-    static func materialView(around content: NSView) -> NSView {
-        #if compiler(>=6.2)
-        if #available(macOS 26, *) {
-            let glass = NSGlassEffectView()
-            glass.cornerRadius = cornerRadius
-            glass.contentView = content
-            return glass
-        }
-        #endif
-        let blur = NSVisualEffectView()
-        blur.material = .menu
-        blur.blendingMode = .behindWindow
-        // Gustave is rarely the active app, and the inactive look is flat grey.
-        blur.state = .active
-        blur.wantsLayer = true
-        blur.layer?.cornerRadius = cornerRadius
-        blur.layer?.cornerCurve = .continuous
-        blur.layer?.masksToBounds = true
-        content.autoresizingMask = [.width, .height]
-        blur.addSubview(content)
-        return blur
-    }
-}
-
-/// Applies the private glass variant the user picked (docs/DECISIONS.md, D19). Set only
-/// when the view answers the setter, so a macOS without it keeps the public look.
-enum GlassStyle {
-    static func apply(_ glass: PanelGlass, to view: NSView) {
-        guard view.responds(to: NSSelectorFromString("set_variant:")) else { return }
-        view.setValue(glass.rawValue, forKey: "_variant")
-    }
 }
 
 /// Gustave is usually not the active app, so the first click must act, not activate.
@@ -102,5 +67,23 @@ final class HoverTrackingView: NSView {
     override func mouseMoved(with event: NSEvent) {
         let location = convert(event.locationInWindow, from: nil)
         onMove?(bounds.height - location.y)
+    }
+}
+
+extension View {
+    /// The panels' background: Liquid Glass from macOS 26, a rounded material before. The
+    /// regular glass keeps white text readable over light and dark content alike.
+    @ViewBuilder
+    func panelBackground() -> some View {
+        let shape = RoundedRectangle(cornerRadius: FloatingPanel.cornerRadius, style: .continuous)
+        #if compiler(>=6.2)
+        if #available(macOS 26, *) {
+            glassEffect(.regular, in: shape)
+        } else {
+            background(.regularMaterial, in: shape)
+        }
+        #else
+        background(.regularMaterial, in: shape)
+        #endif
     }
 }

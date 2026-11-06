@@ -33,13 +33,6 @@ struct SettingsView: View {
                             .frame(width: 40, alignment: .trailing)
                     }
                     .padding(.leading, 20)
-                    Picker("Glass", selection: $store.settings.panelGlass) {
-                        ForEach(PanelGlass.allCases, id: \.self) { glass in
-                            Text(verbatim: glass.label).tag(glass)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                    .padding(.leading, 20)
                 }
                 Toggle("Option+Tab window switcher", isOn: $store.settings.switcherEnabled)
                 if switcher.isUnavailable {

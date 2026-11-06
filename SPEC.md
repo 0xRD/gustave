@@ -35,8 +35,8 @@ the icon. One row per standard window, in the style of DockDoor's compact list.
 - The panel opens after the pointer rests on the icon for a delay set in settings
   (0.5 s by default, 0 to 2 s). Once open, moving to another icon switches at once.
 - Row controls use the system title bar button colours.
-- On macOS 26 the panel is Liquid Glass, with a choice of three styles in settings
-  (V2, V6, V11; V6 by default).
+- On macOS 26 the panel is Liquid Glass (SwiftUI regular glass, D21), readable over light
+  and dark content.
 - Clicking a row raises that window, restores it if minimized, and activates the app.
 - The panel stays open while the pointer is on the icon or the panel, and closes after
   a short grace period (about 250 ms) once it leaves both. It also closes on a click

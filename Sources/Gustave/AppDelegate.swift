@@ -30,10 +30,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 scrollInverter.update(settings: settings, isPermissionGranted: isGranted)
                 dockPanel.setEnabled(
                     settings.dockListEnabled && isGranted,
-                    hoverDelay: settings.dockHoverDelay,
-                    glass: settings.panelGlass
+                    hoverDelay: settings.dockHoverDelay
                 )
-                switcher.setEnabled(settings.switcherEnabled && isGranted, glass: settings.panelGlass)
+                switcher.setEnabled(settings.switcherEnabled && isGranted)
             }
 
         // Silent at login once everything is in place.

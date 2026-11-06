@@ -25,7 +25,6 @@ final class DockPanelController {
     private var content = DockPanelContent()
     private var actions: DockPanelActions!
     private var hostingView: FirstMouseHostingView<DockPanelView>!
-    private var materialView: NSView!
     private lazy var observer = DockHoverObserver { [weak self] event in
         self?.dockPointerChanged(event)
     }
@@ -54,12 +53,10 @@ final class DockPanelController {
         )
         hostingView = FirstMouseHostingView(rootView: makeView())
         // Sized explicitly by `layOut`, never by autoresizing: autoresizing would add each
-        // window resize on top of the size already set, leaving the glass taller than the
+        // window resize on top of the size already set, leaving the content taller than the
         // panel with its top cut off.
-        let material = FloatingPanel.materialView(around: hostingView)
-        materialView = material
         let tracking = HoverTrackingView()
-        tracking.addSubview(material)
+        tracking.addSubview(hostingView)
         tracking.onHoverChange = { [weak self] inside in self?.pointerOnPanelChanged(inside) }
         tracking.onMove = { [weak self] distance in self?.pointerMovedOnPanel(distance) }
         panel.contentView = tracking
@@ -70,9 +67,8 @@ final class DockPanelController {
     }
 
     /// Off removes the Dock observer entirely.
-    func setEnabled(_ isEnabled: Bool, hoverDelay: Double, glass: PanelGlass) {
+    func setEnabled(_ isEnabled: Bool, hoverDelay: Double) {
         self.hoverDelay = hoverDelay
-        GlassStyle.apply(glass, to: materialView)
         if isEnabled {
             observer.start()
         } else {
@@ -237,7 +233,7 @@ final class DockPanelController {
     }
 
     private func layOut(in rect: CGRect) {
-        materialView.frame = CGRect(origin: .zero, size: rect.size)
+        hostingView.frame = CGRect(origin: .zero, size: rect.size)
     }
 
     private func hide() {
