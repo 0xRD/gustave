@@ -55,3 +55,15 @@ private let bounds = Rect(x: 0, y: 70, width: 1512, height: 875)
     let frame = PanelPlacement.frame(width: 300, height: 200, anchor: anchor, edge: .bottom, bounds: screen)
     #expect(frame == Rect(x: -1120, y: -228, width: 300, height: 200))
 }
+
+@Test func gapLeavesRoomForTheDockLabelOnEachEdge() {
+    let bottomIcon = Rect(x: 700, y: 4, width: 60, height: 60)
+    let bottom = PanelPlacement.frame(width: 300, height: 200, anchor: bottomIcon, edge: .bottom, bounds: bounds, gap: 38)
+    #expect(bottom.y == bottomIcon.maxY + 38)
+    let sideIcon = Rect(x: 4, y: 400, width: 56, height: 56)
+    let left = PanelPlacement.frame(width: 300, height: 200, anchor: sideIcon, edge: .left, bounds: bounds, gap: 38)
+    #expect(left.x == sideIcon.maxX + 38)
+    let rightIcon = Rect(x: 1452, y: 400, width: 56, height: 56)
+    let right = PanelPlacement.frame(width: 300, height: 200, anchor: rightIcon, edge: .right, bounds: bounds, gap: 38)
+    #expect(right.maxX == rightIcon.x - 38)
+}

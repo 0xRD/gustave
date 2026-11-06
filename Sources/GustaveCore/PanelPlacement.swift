@@ -1,15 +1,16 @@
 /// Where the window list goes next to a Dock icon. All values in AppKit coordinates.
 public enum PanelPlacement {
-    public static let gap = 8.0
+    public static let defaultGap = 8.0
 
-    /// Beside the icon, on the side away from the Dock, then moved inside `bounds`. A
-    /// panel larger than `bounds` is pinned to its origin.
+    /// `gap` points beside the icon, on the side away from the Dock, then moved inside
+    /// `bounds`. A panel larger than `bounds` is pinned to its origin.
     public static func frame(
         width: Double,
         height: Double,
         anchor: Rect,
         edge: DockEdge,
-        bounds: Rect
+        bounds: Rect,
+        gap: Double = defaultGap
     ) -> Rect {
         var x: Double
         var y: Double

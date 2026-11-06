@@ -211,6 +211,12 @@ out per frame. With Reduce Motion on, the slide is dropped.
 - 2026-11-06, macOS 26.6: `NSGlassEffectView` stops the process with a fatal error when
   `_adaptiveAppearance` is set outside 0 to 2. `_variant` and `_subduedState` accepted 0 to 20.
   Values are therefore fixed constants, never taken from settings or other input.
+- 2026-11-06, macOS 26.6: the open animation animated the panel's whole frame toward its
+  size at open time. When windows from other Spaces arrived during it, the panel was resized,
+  then shrunk back as the animation ended, which cut off the header and the rounded corners.
+  Every frame change now goes through one setter that replaces any running animation, and
+  only same-size moves animate. The panel also sits 38 pt from the icon, above the Dock's own
+  name label, and the gap between icon and panel counts as inside.
 
 ## Open questions
 

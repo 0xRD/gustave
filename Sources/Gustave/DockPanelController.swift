@@ -12,6 +12,8 @@ final class DockPanelController {
     private static let openDuration: TimeInterval = 0.16
     private static let closeDuration: TimeInterval = 0.1
     private static let moveDuration: TimeInterval = 0.12
+    /// Room for the Dock's own name label, which appears next to the hovered icon.
+    private static let tooltipClearance = 38.0
     /// How far the panel slides in from the Dock while opening.
     private static let openOffset = 6.0
     /// Slack around the icon, so the pointer can cross to the panel without it closing.
@@ -31,6 +33,8 @@ final class DockPanelController {
     /// True from the moment the panel opens until it starts closing, so a fade-out still on
     /// screen counts as closed.
     private var isPresented = false
+    /// The frame last asked for. The window's own frame lags behind while animating.
+    private var requestedFrame: CGRect?
     private var hoverDelay = Settings.defaultDockHoverDelay
     private var pendingShow: DispatchWorkItem?
     private var pendingClose: DispatchWorkItem?
@@ -161,7 +165,6 @@ final class DockPanelController {
     /// is animated, so the window server does the work and nothing is laid out per frame.
     private func present() {
         guard let hover, let final = targetFrame() else { return }
-        layOut(in: final)
         var start = final
         if !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
             switch hover.edge {
@@ -171,29 +174,35 @@ final class DockPanelController {
             }
         }
         panel.alphaValue = 0
-        panel.setFrame(start, display: true)
+        setFrame(start, duration: 0)
         panel.orderFrontRegardless()
         NSAnimationContext.runAnimationGroup { context in
             context.duration = Self.openDuration
             context.timingFunction = CAMediaTimingFunction(name: .easeOut)
             panel.animator().alphaValue = 1
-            panel.animator().setFrame(final, display: false)
         }
+        setFrame(final, duration: Self.openDuration)
     }
 
     /// Renders the current content and moves the open panel next to the icon: gliding
     /// when only the position changes, at once when the size changes.
     private func place() {
         guard let rect = targetFrame() else { return }
-        if rect.size == panel.frame.size {
-            NSAnimationContext.runAnimationGroup { context in
-                context.duration = Self.moveDuration
-                context.timingFunction = CAMediaTimingFunction(name: .easeOut)
-                panel.animator().setFrame(rect, display: false)
-            }
-        } else {
-            layOut(in: rect)
-            panel.setFrame(rect, display: true)
+        let isSameSize = rect.size == requestedFrame?.size
+        setFrame(rect, duration: isSameSize ? Self.moveDuration : 0)
+    }
+
+    /// The only way the panel's frame changes. Each call replaces any animation still
+    /// running, so a glide that started before the content grew cannot shrink the panel
+    /// back when it ends. Only same-size moves are ever animated.
+    private func setFrame(_ rect: CGRect, duration: TimeInterval) {
+        let isResize = rect.size != requestedFrame?.size
+        requestedFrame = rect
+        layOut(in: rect)
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = isResize ? 0 : duration
+            context.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            panel.animator().setFrame(rect, display: true)
         }
         panel.invalidateShadow()
     }
@@ -209,7 +218,8 @@ final class DockPanelController {
             height: size.height,
             anchor: hover.iconFrame,
             edge: hover.edge,
-            bounds: hover.screenFrame
+            bounds: hover.screenFrame,
+            gap: Self.tooltipClearance
         )
         return CGRect(x: frame.x, y: frame.y, width: frame.width, height: frame.height)
     }
@@ -279,16 +289,16 @@ final class DockPanelController {
         spaceObserver = nil
     }
 
+    /// On the panel, on the icon, or in the gap between them, so a slow move from the icon
+    /// to the panel does not close it on the way.
     private func isPointerInside() -> Bool {
         let pointer = NSEvent.mouseLocation
-        if panel.frame.contains(pointer) {
-            return true
-        }
-        guard let icon = hover?.iconFrame else { return false }
+        let panelFrame = requestedFrame ?? panel.frame
+        guard let icon = hover?.iconFrame else { return panelFrame.contains(pointer) }
         let slack = Self.iconSlack
-        return CGRect(x: icon.x, y: icon.y, width: icon.width, height: icon.height)
+        let iconFrame = CGRect(x: icon.x, y: icon.y, width: icon.width, height: icon.height)
             .insetBy(dx: -slack, dy: -slack)
-            .contains(pointer)
+        return panelFrame.union(iconFrame).contains(pointer)
     }
 
     private func pointerMovedElsewhere() {
