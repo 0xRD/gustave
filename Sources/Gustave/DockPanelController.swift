@@ -8,6 +8,12 @@ final class DockPanelController {
     private static let closeDelay: TimeInterval = 0.25
     /// Apps animate a close or minimize before reporting it.
     private static let refreshDelay: TimeInterval = 0.4
+    /// Short, so the panel feels like a system popover and costs a few frames of compositing.
+    private static let openDuration: TimeInterval = 0.16
+    private static let closeDuration: TimeInterval = 0.1
+    private static let moveDuration: TimeInterval = 0.12
+    /// How far the panel slides in from the Dock while opening.
+    private static let openOffset = 6.0
     /// Slack around the icon, so the pointer can cross to the panel without it closing.
     private static let iconSlack = 6.0
 
@@ -21,6 +27,9 @@ final class DockPanelController {
     }
 
     private var hover: DockHover?
+    /// True from the moment the panel opens until it starts closing, so a fade-out still on
+    /// screen counts as closed.
+    private var isPresented = false
     private var hoverDelay = Settings.defaultDockHoverDelay
     private var pendingShow: DispatchWorkItem?
     private var pendingClose: DispatchWorkItem?
@@ -73,7 +82,7 @@ final class DockPanelController {
         cancelClose()
         let isSameApp = newHover.app.processIdentifier == hover?.app.processIdentifier
         hover = newHover
-        if panel.isVisible {
+        if isPresented {
             if isSameApp {
                 place()
             } else {
@@ -121,7 +130,7 @@ final class DockPanelController {
                     let all = windows + others
                     if all.isEmpty {
                         self.hide()
-                    } else if !others.isEmpty || !self.panel.isVisible {
+                    } else if !others.isEmpty || !self.isPresented {
                         self.show(all, of: hover.app)
                     }
                 }
@@ -136,14 +145,59 @@ final class DockPanelController {
             windows: windows
         )
         highlight.row = nil
-        place()
-        panel.orderFrontRegardless()
+        if isPresented {
+            place()
+        } else {
+            isPresented = true
+            present()
+        }
         installDismissal()
     }
 
-    /// Renders the current content, measures it, and moves the panel next to the icon.
+    /// Fades in while sliding a few points away from the Dock. The window, not the view,
+    /// is animated, so the window server does the work and nothing is laid out per frame.
+    private func present() {
+        guard let hover, let final = targetFrame() else { return }
+        layOut(in: final)
+        var start = final
+        if !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
+            switch hover.edge {
+            case .bottom: start.origin.y -= Self.openOffset
+            case .left: start.origin.x -= Self.openOffset
+            case .right: start.origin.x += Self.openOffset
+            }
+        }
+        panel.alphaValue = 0
+        panel.setFrame(start, display: true)
+        panel.orderFrontRegardless()
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = Self.openDuration
+            context.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            panel.animator().alphaValue = 1
+            panel.animator().setFrame(final, display: false)
+        }
+    }
+
+    /// Renders the current content and moves the open panel next to the icon: gliding
+    /// when only the position changes, at once when the size changes.
     private func place() {
-        guard let hover else { return }
+        guard let rect = targetFrame() else { return }
+        if rect.size == panel.frame.size {
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = Self.moveDuration
+                context.timingFunction = CAMediaTimingFunction(name: .easeOut)
+                panel.animator().setFrame(rect, display: false)
+            }
+        } else {
+            layOut(in: rect)
+            panel.setFrame(rect, display: true)
+        }
+        panel.invalidateShadow()
+    }
+
+    /// Renders the current content, measures it, and places it next to the icon.
+    private func targetFrame() -> CGRect? {
+        guard let hover else { return nil }
         hostingView.rootView = makeView()
         hostingView.layoutSubtreeIfNeeded()
         let size = hostingView.fittingSize
@@ -154,10 +208,11 @@ final class DockPanelController {
             edge: hover.edge,
             bounds: hover.screenFrame
         )
-        let rect = CGRect(x: frame.x, y: frame.y, width: frame.width, height: frame.height)
-        panel.setFrame(rect, display: true)
+        return CGRect(x: frame.x, y: frame.y, width: frame.width, height: frame.height)
+    }
+
+    private func layOut(in rect: CGRect) {
         panel.contentView?.subviews.first?.frame = CGRect(origin: .zero, size: rect.size)
-        panel.invalidateShadow()
     }
 
     private func hide() {
@@ -165,13 +220,29 @@ final class DockPanelController {
         cancelShow()
         cancelClose()
         removeDismissal()
-        panel.orderOut(nil)
+        fadeOut()
         hover = nil
         highlight.row = nil
         content = DockPanelContent()
     }
 
     // MARK: Closing
+
+    private func fadeOut() {
+        guard isPresented else { return }
+        isPresented = false
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = Self.closeDuration
+            context.timingFunction = CAMediaTimingFunction(name: .easeIn)
+            panel.animator().alphaValue = 0
+        } completionHandler: { [weak self] in
+            MainActor.assumeIsolated {
+                // Reopened during the fade: leave it on screen.
+                guard let self, !self.isPresented else { return }
+                self.panel.orderOut(nil)
+            }
+        }
+    }
 
     private func installDismissal() {
         guard dismissMonitor == nil else { return }

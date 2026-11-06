@@ -154,7 +154,10 @@ which copies values of unknown size into a fixed buffer and can corrupt memory w
 layout changes. Row controls are the title bar buttons in their system colours, with glyphs
 on the highlighted row. The panel opens after a hover delay, 0.5 s by default, set in
 settings from 0 to 2 s. Windows found only by the other-Spaces search need a title, which
-drops hidden helper windows such as Electron's.
+drops hidden helper windows such as Electron's. Opening fades in over 0.16 s while sliding
+6 pt away from the Dock, closing fades out over 0.1 s, and moving between icons glides over
+0.12 s. Only the window is animated, so the window server composites it and nothing is laid
+out per frame. With Reduce Motion on, the slide is dropped.
 
 ## Verified on device
 
@@ -201,6 +204,9 @@ drops hidden helper windows such as Electron's.
   nothing for windows on other Spaces, so layers come from one `.optionAll` list per
   listing. With that build, the other-Spaces search found Safari and Mail windows the
   public list missed (log: "5 windows not on this Space, 2 found").
+- 2026-11-06, macOS 26.6: `NSGlassEffectView` stops the process with a fatal error when
+  `_adaptiveAppearance` is set outside 0 to 2. `_variant` and `_subduedState` accepted 0 to 20.
+  Values are therefore fixed constants, never taken from settings or other input.
 
 ## Open questions
 
