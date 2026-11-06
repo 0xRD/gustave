@@ -108,9 +108,10 @@ final class WindowSwitcher: ObservableObject {
         let recent = focus.recent.keys
         AXQueues.windows.async { [weak self] in
             let started = Date()
-            let current = SwitcherWindows.currentSpace(regularApps: regular, excluding: own, recent: recent)
+            let current = SwitcherWindows.currentSpace(
+                regularApps: regular, hiddenApps: hidden, excluding: own, recent: recent)
             let windows = current.ordered
-            Self.log.debug("list: \(windows.count) windows from \(regular.count) apps in \(Self.elapsed(since: started)) ms")
+            Self.log.debug("list: \(windows.count) windows (\(current.otherSpaces.count) on other Spaces, from memory) from \(regular.count) apps in \(Self.elapsed(since: started)) ms")
             DispatchQueue.main.async {
                 MainActor.assumeIsolated {
                     guard let self, token == self.generation else { return }

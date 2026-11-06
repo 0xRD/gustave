@@ -95,6 +95,8 @@ Status: [ ] todo, [~] in progress, [x] done.
   cleanup on dismiss.
   - Accept (manual): quick press toggles two windows, including two of the same app.
     Works across fullscreen apps and multiple displays. Zero idle cost.
+  - Open (D27): quick press reaches the previous window on another Space, and a window
+    seen once (Safari's third window) is listed from other Spaces in both lists.
 
 ## M5. Hardening and release
 

@@ -279,6 +279,48 @@ between Spaces, window capture.
 `FocusTracker` now reads the focused window from the frontmost app on each change rather
 than trusting the notification's element, and logs window ids (no titles) at debug level.
 
+### D27. Remember the windows already seen
+Decided 2026-11-06 after two reports from the user's debug log (Safari pid 1489, Finder 653).
+Both have one cause: Gustave forgot windows it had already seen, and found windows on other
+Spaces only by the search of D17, which runs after the first list and cannot reach every
+window.
+- Safari has 3 windows; from another Space both lists showed 2, every time: "3 windows not
+  on this Space, 2 found, ... 1 not reached, stopped: id limit, last id 1000". The third
+  window's element id is above 1000. Element ids grow as a long-running app creates
+  elements, so no fixed range reaches every window.
+- A quick Option+Tab went to Finder 418 although the focus history was Safari 4081, Safari
+  9111, Finder 418. 9111 is on another Space. The first list holds the current Space only,
+  `SwitcherOrder` drops history entries that are not listed, and a quick press commits on
+  the first list, before the search (D23) adds 9111. The history was right; the list it
+  was applied to was not.
+
+Fix, as DockDoor keeps its window cache: an Accessibility element read while its window is
+on the current Space keeps working after the user leaves that Space. Gustave remembers the
+element of every window it sees: each window `FocusTracker` sees focused, each window
+`AXWindows` returns for either list, and each window the search finds. Kept in memory only,
+at most 256 windows, least recently seen dropped first (`SeenWindows` in Core, unit tested,
+behind a lock in `SeenWindowElements`, as the Accessibility queues and main all use it).
+A remembered element is used only for a window the window server still lists for that pid
+as a candidate on another Space (the D26 test), and only if it answers a read with the
+short timeout; one that fails is forgotten. Windows the window server no longer has are
+dropped whenever an app's windows are listed, every app's at once in the switcher's second
+step, and an app's windows go when it quits. The memory is emptied when both the Dock list
+and the switcher are off, or Accessibility is revoked.
+- The switcher's first step now includes the remembered windows on other Spaces: one read
+  per window, no search, so the first step stays fast and a quick press reaches the window
+  focused before, on any Space.
+- The search, used by the Dock list's second step and the switcher's, reads remembered
+  windows first and looks by element id only for the rest, so once every window has been
+  seen it does not run at all. The Dock list could take them in its first step too
+  (`AppWindows.remembered`), left for the next change to that file.
+- The search's range stays 0 to 999. Raising it would cost a scan of every id up to the
+  new limit on every list, for every app with a window never seen, and would still miss
+  higher ids. Its log line now records how long it took, to decide this on data.
+Not done, to keep steady-state cost at zero: refreshing the memory on every Space change,
+or listing every app at launch. A window never focused or listed since Gustave started,
+whose element id is above 999, is still missing until the user visits its Space and
+focuses it, hovers its app in the Dock, or presses Option+Tab there. No new private API.
+
 ## Verified on device
 
 - 2026-11-01, macOS 26.6: codesign refuses an untrusted self-signed identity ("no identity

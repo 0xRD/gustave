@@ -34,26 +34,30 @@ enum SwitcherWindows {
 
     /// Every switchable window on the current Space, then the minimized windows of
     /// `regularApps`. The on-screen order comes from the window server, which lists windows
-    /// front to back. Only ids and layers are read, never names.
-    static func currentSpace(regularApps: [pid_t], excluding ownPID: pid_t, recent: [WindowKey]) -> Snapshot {
+    /// front to back. Only ids and layers are read, never names. Windows on other Spaces
+    /// that Gustave has seen before are included too (D27): a quick press commits on this
+    /// list, and the window focused before the current one may be on another Space.
+    static func currentSpace(
+        regularApps: [pid_t], hiddenApps: Set<pid_t>, excluding ownPID: pid_t, recent: [WindowKey]
+    ) -> Snapshot {
         let frontToBack = onScreenOrder(excluding: ownPID)
         var pids: [pid_t] = []
         for pid in frontToBack.map(\.pid) + regularApps where pid != ownPID && !pids.contains(pid) {
             pids.append(pid)
         }
 
-        let lists = inParallel(pids) { AppWindows.list(pid: $0) ?? [] }
+        let lists = inParallel(pids) { pid -> (here: [AppWindow], elsewhere: [AppWindow]) in
+            guard let here = AppWindows.list(pid: pid) else { return ([], []) }
+            return (here, AppWindows.remembered(pid: pid, known: here, appIsHidden: hiddenApps.contains(pid)))
+        }
         var snapshot = Snapshot()
         snapshot.recent = recent
-        for window in lists.joined() {
-            guard let id = window.windowID else { continue }
-            let key = WindowKey(pid: window.pid, windowID: id)
-            snapshot.windows[key] = window
-            if window.isMinimized {
-                snapshot.minimized.append(key)
-            }
-        }
+        _ = add(lists.flatMap(\.here), to: &snapshot)
         snapshot.frontToBack = frontToBack.filter { snapshot.windows[$0] != nil }
+        let elsewhere = add(lists.flatMap(\.elsewhere), to: &snapshot)
+        if !elsewhere.isEmpty {
+            snapshot.otherSpaces = inGlobalOrder(elsewhere, allWindowsOrder())
+        }
         return snapshot
     }
 
@@ -66,23 +70,37 @@ enum SwitcherWindows {
         }
 
         var result = snapshot
+        let added = add(Array(found.joined()), to: &result)
+        let everyWindow = allWindowsOrder()
+        result.otherSpaces = inGlobalOrder(snapshot.otherSpaces + added, everyWindow)
+        // The one place every app's windows are listed at once: windows closed since they
+        // were seen, including those of apps that quit, leave the memory here.
+        if !everyWindow.isEmpty {
+            SeenWindowElements.forget(except: Set(everyWindow))
+        }
+        return result
+    }
+
+    /// Adds windows not listed yet, and returns the keys of those that are not minimized.
+    private static func add(_ windows: [AppWindow], to snapshot: inout Snapshot) -> [WindowKey] {
         var added: [WindowKey] = []
-        for window in found.joined() {
+        for window in windows {
             guard let id = window.windowID else { continue }
             let key = WindowKey(pid: window.pid, windowID: id)
-            guard result.windows[key] == nil else { continue }
-            result.windows[key] = window
+            guard snapshot.windows[key] == nil else { continue }
+            snapshot.windows[key] = window
             if window.isMinimized {
-                result.minimized.append(key)
+                snapshot.minimized.append(key)
             } else {
                 added.append(key)
             }
         }
-        let globalOrder = Dictionary(
-            allWindowsOrder().enumerated().map { ($1, $0) },
-            uniquingKeysWith: { first, _ in first })
-        result.otherSpaces = added.sorted { (globalOrder[$0] ?? .max) < (globalOrder[$1] ?? .max) }
-        return result
+        return added
+    }
+
+    private static func inGlobalOrder(_ keys: [WindowKey], _ everyWindow: [WindowKey]) -> [WindowKey] {
+        let position = Dictionary(everyWindow.enumerated().map { ($1, $0) }, uniquingKeysWith: { first, _ in first })
+        return keys.sorted { (position[$0] ?? .max) < (position[$1] ?? .max) }
     }
 
     static func onScreenOrder(excluding ownPID: pid_t) -> [WindowKey] {

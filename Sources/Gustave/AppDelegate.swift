@@ -35,6 +35,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     hoverDelay: settings.dockHoverDelay
                 )
                 switcher.setEnabled(settings.switcherEnabled && isGranted)
+                SeenWindowElements.setActive((settings.dockListEnabled || settings.switcherEnabled) && isGranted)
             }
 
         // Silent at login once everything is in place.

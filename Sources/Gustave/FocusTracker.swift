@@ -73,6 +73,9 @@ final class FocusTracker {
                 return
             }
             Self.log.debug("\(reason): pid \(pid), window \(key.windowID)")
+            // The element still works once the user leaves this Space, and the search for
+            // windows on other Spaces may never reach it (D27).
+            SeenWindowElements.remember(window, pid: pid, windowID: key.windowID)
             DispatchQueue.main.async {
                 MainActor.assumeIsolated { self?.recent.touch(key) }
             }

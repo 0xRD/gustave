@@ -63,7 +63,7 @@ the last two used.
 
 Behaviour (modelled on Windows):
 - A quick press (hold Option, tap Tab, release both) switches to the previously used
-  window. Repeating it toggles between the two most recent windows.
+  window, on any Space. Repeating it toggles between the two most recent windows.
 - Holding Option and pressing Tab repeatedly moves the selection forward through the MRU
   list. Shift+Tab goes backwards. Releasing Option activates the selection. Escape
   cancels.
@@ -138,7 +138,9 @@ grant survives rebuilds. Hardened runtime on, no entitlements.
 - Idle CPU 0.0 percent, idle wakeups near zero (`powermetrics --show-process-wakeups`).
 - Dock hover: constant-time pointer check, Accessibility probes only near the Dock
   edge and at most about 30 per second.
-- Memory: low tens of MB resident. No caches of window lists.
+- Memory: low tens of MB resident. No caches of window lists. The only window memory is
+  the Accessibility elements of at most 256 windows already seen, validated before each
+  use (D27).
 
 ## Implementation notes (verify on device, then record in DECISIONS.md)
 
