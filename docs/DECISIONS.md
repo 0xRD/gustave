@@ -78,6 +78,16 @@ unassigned scalars, and keeps at most two consecutive combining marks, because e
 these can hide or distort text in a row. Removing joiners and variation selectors means an
 emoji family renders as separate emoji. That is accepted: titles are for recognition only.
 
+### D13. Scroll source by the continuous flag, not by device identity
+Decided 2026-11-06. Scroll Reverser (source read 2026-11-06) identifies the sending device:
+it calls the private `CGEventCopyIOHIDEvent` and `IOHIDEventGetSenderID`, then reads the
+device's IOKit properties (scroll acceleration type, multitouch driver class). This gives
+per-device settings but breaks hard rule 4, so it is rejected. It also negates the scroll
+values inside the attached IOHIDEvent, which Gustave cannot do publicly. The public
+alternative, treating a continuous event as a trackpad only when it carries a scroll or
+momentum phase (fields 99 and 123), is kept in reserve for smooth-scrolling mouse drivers.
+The user tested the continuous flag with their devices and it works, so it stays.
+
 ## Verified on device
 
 - 2026-11-01, macOS 26.6: codesign refuses an untrusted self-signed identity ("no identity
@@ -100,6 +110,10 @@ emoji family renders as separate emoji. That is accepted: titles are for recogni
   with Accessibility alone, with no Input Monitoring prompt. `CGGetEventTapList` shows one
   enabled tap with mask 0x400000 while a toggle is on at launch, and none while both are
   off. Removal by toggling at runtime, and scroll behaviour, are still manual checks.
+- 2026-11-06, macOS 26.6: user check of M2. Mouse inverted with the trackpad natural, and
+  the reverse, work with their devices, as do momentum and latency. A tap installed at
+  runtime by a toggle shows in `CGGetEventTapList`. Hector cannot show scroll taps yet
+  (0xRD/hector#4), so removal by toggling off while running is not yet confirmed.
 
 ## Open questions
 

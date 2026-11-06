@@ -55,10 +55,12 @@ Status: [ ] todo, [~] in progress, [x] done.
 
 - [~] M2.1 Event tap lifecycle: install only while a toggle is on, remove completely
   when off, re-enable after system disable, survive permission revocation.
-- [~] M2.2 Per-device inversion, vertical axis, momentum included.
+  - Open: confirm removal when both toggles go off while running. Hector lists keyboard
+    taps only (0xRD/hector#4), so use `CGGetEventTapList` until that is fixed.
+- [x] M2.2 Per-device inversion, vertical axis, momentum included.
   - Accept (manual): mouse inverted with trackpad natural and the reverse. Disable both,
     confirm in Hector that no tap remains. No visible latency.
-- [~] M2.3 Settings toggles wired to the app model, persisted.
+- [x] M2.3 Settings toggles wired to the app model, persisted.
 
 ## M3. Dock window list (F1)
 
