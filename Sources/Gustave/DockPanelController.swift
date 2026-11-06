@@ -22,6 +22,7 @@ final class DockPanelController {
     private var content = DockPanelContent()
     private var actions: DockPanelActions!
     private var hostingView: FirstMouseHostingView<DockPanelView>!
+    private var materialView: NSView!
     private lazy var observer = DockHoverObserver { [weak self] hover in
         self?.hoverChanged(hover)
     }
@@ -49,6 +50,7 @@ final class DockPanelController {
         hostingView = FirstMouseHostingView(rootView: makeView())
         let material = FloatingPanel.materialView(around: hostingView)
         material.autoresizingMask = [.width, .height]
+        materialView = material
         let tracking = HoverTrackingView()
         tracking.addSubview(material)
         tracking.onHoverChange = { [weak self] inside in self?.pointerOnPanelChanged(inside) }
@@ -61,8 +63,9 @@ final class DockPanelController {
     }
 
     /// Off removes the Dock observer entirely.
-    func setEnabled(_ isEnabled: Bool, hoverDelay: Double) {
+    func setEnabled(_ isEnabled: Bool, hoverDelay: Double, glass: PanelGlass) {
         self.hoverDelay = hoverDelay
+        GlassStyle.apply(glass, to: materialView)
         if isEnabled {
             observer.start()
         } else {

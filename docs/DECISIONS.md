@@ -146,8 +146,12 @@ with public API: the Dock hides as it does for DockDoor.
 Approved by the user on 2026-11-06 ("if you have to use a private function do it"), after
 the D16 panel still looked out of place. Read on device from a live `NSMenu` window: system
 menus use `NSGlassView` with a 12 pt radius, `_variant` 0, `_subduedState` 0 and
-`_adaptiveAppearance` 1, where a plain `NSGlassEffectView` defaults to 2. Gustave sets
-`_adaptiveAppearance` to 1 through key-value coding, only when the view answers the setter.
+`_adaptiveAppearance` 1, where a plain `NSGlassEffectView` defaults to 2. Copying the menu
+value kept the panel dark over light content, because dark-mode menus do not adapt, unlike
+Control Center. The user then compared live samples of each `_variant` over light content
+and picked variant 6, with 2 and 11 offered as alternatives in settings (`PanelGlass`, V6 by
+default). `_adaptiveAppearance` keeps its default. The variant is set through key-value
+coding, only when the view answers the setter, and only from those three constants.
 The panel reports `isKeyWindow` as true so the glass draws its active look; `canBecomeKey`
 stays false, so it never takes keyboard focus. Rejected: DockDoor's private SwiftUI glass,
 which copies values of unknown size into a fixed buffer and can corrupt memory when the

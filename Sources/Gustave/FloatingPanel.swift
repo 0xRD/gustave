@@ -1,4 +1,5 @@
 import AppKit
+import GustaveCore
 import SwiftUI
 
 /// A borderless panel that floats over every Space and never takes focus.
@@ -40,7 +41,6 @@ final class FloatingPanel: NSPanel {
             let glass = NSGlassEffectView()
             glass.cornerRadius = cornerRadius
             glass.contentView = content
-            MenuGlass.apply(to: glass)
             return glass
         }
         #endif
@@ -59,16 +59,12 @@ final class FloatingPanel: NSPanel {
     }
 }
 
-/// The private glass setting that system menus use on macOS 26 (docs/DECISIONS.md, D19),
-/// read from an `NSMenu` window. Set only when the view answers it, so a macOS without it
-/// keeps the public look.
-enum MenuGlass {
-    private static let adaptiveAppearanceKey = "_adaptiveAppearance"
-    private static let menuAdaptiveAppearance = 1
-
-    static func apply(to view: NSView) {
-        guard view.responds(to: NSSelectorFromString("set_adaptiveAppearance:")) else { return }
-        view.setValue(menuAdaptiveAppearance, forKey: adaptiveAppearanceKey)
+/// Applies the private glass variant the user picked (docs/DECISIONS.md, D19). Set only
+/// when the view answers the setter, so a macOS without it keeps the public look.
+enum GlassStyle {
+    static func apply(_ glass: PanelGlass, to view: NSView) {
+        guard view.responds(to: NSSelectorFromString("set_variant:")) else { return }
+        view.setValue(glass.rawValue, forKey: "_variant")
     }
 }
 
