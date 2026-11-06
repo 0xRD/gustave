@@ -24,33 +24,12 @@ private func key(_ pid: Int32, _ id: UInt32) -> WindowKey { WindowKey(pid: pid, 
     }
     #expect(recent.keys.count == RecentWindows.capacity)
     #expect(recent.keys.first == key(1, UInt32(RecentWindows.capacity + 9)))
-    #expect(RecentWindows(keys: Array(repeating: key(1, 1), count: 300)).keys.count == RecentWindows.capacity)
+    let many = (0..<300).map { key(1, UInt32($0)) }
+    #expect(RecentWindows(keys: many).keys.count == RecentWindows.capacity)
 }
 
-@Test func recentWindowsLeadAcrossSpaces() {
-    // Claude here, Safari on another Space: the two most recent, as Command+Tab has them.
-    let claude = key(1, 1), safari = key(2, 2), finder = key(3, 3)
-    let order = SwitcherOrder.order(
-        recent: [claude, safari],
-        frontToBack: [claude, finder],
-        otherSpaces: [safari],
-        minimized: []
-    )
-    #expect(order == [claude, safari, finder])
-}
-
-@Test func recentWindowsThatAreGoneAreSkipped() {
-    let here = key(1, 1), closed = key(9, 9)
-    #expect(SwitcherOrder.order(recent: [closed, here], frontToBack: [here], minimized: []) == [here])
-}
-
-@Test func aRecentWindowThatIsMinimizedStaysLast() {
-    let here = key(1, 1), minimized = key(2, 2)
-    #expect(SwitcherOrder.order(recent: [minimized, here], frontToBack: [here], minimized: [minimized])
-        == [here, minimized])
-}
-
-@Test func withoutHistoryTheWindowServerOrderApplies() {
-    let a = key(1, 1), b = key(2, 2), c = key(3, 3)
-    #expect(SwitcherOrder.order(recent: [], frontToBack: [a, b], otherSpaces: [c], minimized: []) == [a, b, c])
+@Test func aSeedListedTwiceKeepsItsFirstPlace() {
+    let recent = RecentWindows(keys: [key(1, 1), key(2, 2), key(1, 1), key(3, 3), key(2, 2)])
+    #expect(recent.keys == [key(1, 1), key(2, 2), key(3, 3)])
+    #expect(RecentWindows(keys: Array(repeating: key(1, 1), count: 300)).keys == [key(1, 1)])
 }

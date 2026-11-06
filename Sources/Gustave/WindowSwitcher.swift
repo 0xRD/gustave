@@ -21,6 +21,9 @@ final class WindowSwitcher: ObservableObject {
 
     private struct Session {
         var steps: Int
+        /// The window that had focus when the session began, nil for none.
+        let focused: WindowKey?
+        let cancellation = SwitcherWindows.Cancellation()
         var windows: [AppWindow]?
         var isCommitted = false
         /// The show delay has passed: show the list as soon as it is ready.
@@ -98,7 +101,8 @@ final class WindowSwitcher: ObservableObject {
     private func begin(steps: Int) {
         generation += 1
         let token = generation
-        session = Session(steps: steps)
+        let session = Session(steps: steps, focused: focus.focusedWindow)
+        self.session = session
         installSessionWatchers()
 
         let own = ProcessInfo.processInfo.processIdentifier
@@ -106,11 +110,17 @@ final class WindowSwitcher: ObservableObject {
         let regular = regularApps.map(\.processIdentifier)
         let hidden = Set(regularApps.filter(\.isHidden).map(\.processIdentifier))
         let recent = focus.recent.keys
+        let cancellation = session.cancellation
         AXQueues.windows.async { [weak self] in
+            // Queued behind an earlier session's work, and already over.
+            guard !cancellation.isCancelled else { return }
             let started = Date()
-            let current = SwitcherWindows.currentSpace(regularApps: regular, excluding: own, recent: recent)
+            let server = WindowServerList.current()
+            let current = SwitcherWindows.currentSpace(
+                regularApps: regular, hiddenApps: hidden, excluding: own, recent: recent,
+                server: server, cancellation: cancellation)
             let windows = current.ordered
-            Self.log.debug("list: \(windows.count) windows from \(regular.count) apps in \(Self.elapsed(since: started)) ms")
+            Self.log.debug("list: \(windows.count) windows (\(current.otherSpaces.count) on other Spaces, from memory) from \(regular.count) apps in \(Self.elapsed(since: started)) ms")
             DispatchQueue.main.async {
                 MainActor.assumeIsolated {
                     guard let self, token == self.generation else { return }
@@ -121,7 +131,11 @@ final class WindowSwitcher: ObservableObject {
             // Other Spaces arrive second, on their own queue, so a quick press never waits
             // for them and raising the chosen window is not queued behind them.
             AXQueues.otherSpaces.async {
-                let full = SwitcherWindows.addingOtherSpaces(to: current, regularApps: regular, hiddenApps: hidden)
+                // A quick press has usually committed and ended the session by now.
+                guard !cancellation.isCancelled else { return }
+                let full = SwitcherWindows.addingOtherSpaces(
+                    to: current, regularApps: regular, hiddenApps: hidden, server: server,
+                    cancellation: cancellation)
                 Self.log.debug("other Spaces: \(full.windows.count - current.windows.count) windows in \(Self.elapsed(since: started)) ms")
                 guard full.windows.count > current.windows.count else { return }
                 let all = full.ordered
@@ -138,6 +152,12 @@ final class WindowSwitcher: ObservableObject {
             MainActor.assumeIsolated {
                 guard let self, token == self.generation else { return }
                 self.pendingShow = nil
+                // Option's release can go unseen, for example while a password field has
+                // secure input on: then switch now rather than leave the list up.
+                guard NSEvent.modifierFlags.contains(.option) else {
+                    self.commit()
+                    return
+                }
                 self.session?.wantsPanel = true
                 self.showPanel()
             }
@@ -167,14 +187,17 @@ final class WindowSwitcher: ObservableObject {
     }
 
     private func windowsArrived(_ windows: [AppWindow]) {
-        session?.windows = windows
-        if session?.isCommitted == true {
+        guard let session else { return }
+        self.session?.windows = windows
+        self.session?.steps = SwitcherSelection.steps(
+            session.steps, focused: session.focused, first: windows.first.map(Self.key))
+        if session.isCommitted || !NSEvent.modifierFlags.contains(.option) {
             commit()
             return
         }
         render()
         // The list took longer than the show delay: show it now.
-        if session?.wantsPanel == true, !panel.isVisible {
+        if session.wantsPanel, !panel.isVisible {
             showPanel()
         }
     }
@@ -230,11 +253,15 @@ final class WindowSwitcher: ObservableObject {
     }
 
     private func activate(_ window: AppWindow) {
+        if let windowID = window.windowID {
+            focus.touch(WindowKey(pid: window.pid, windowID: windowID))
+        }
         AXQueues.windows.async { AppWindows.raise(window) }
     }
 
     private func end() {
         generation += 1
+        session?.cancellation.cancel()
         session = nil
         pendingShow?.cancel()
         pendingShow = nil

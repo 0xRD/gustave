@@ -279,6 +279,73 @@ between Spaces, window capture.
 `FocusTracker` now reads the focused window from the frontmost app on each change rather
 than trusting the notification's element, and logs window ids (no titles) at debug level.
 
+### D27. Remember the windows already seen
+Decided 2026-11-06 after two reports from the user's debug log (Safari pid 1489, Finder 653).
+Both have one cause: Gustave forgot windows it had already seen, and found windows on other
+Spaces only by the search of D17, which runs after the first list and cannot reach every
+window.
+- Safari has 3 windows; from another Space both lists showed 2, every time: "3 windows not
+  on this Space, 2 found, ... 1 not reached, stopped: id limit, last id 1000". The third
+  window's element id is above 1000. Element ids grow as a long-running app creates
+  elements, so no fixed range reaches every window.
+- A quick Option+Tab went to Finder 418 although the focus history was Safari 4081, Safari
+  9111, Finder 418. 9111 is on another Space. The first list holds the current Space only,
+  `SwitcherOrder` drops history entries that are not listed, and a quick press commits on
+  the first list, before the search (D23) adds 9111. The history was right; the list it
+  was applied to was not.
+
+Fix, as DockDoor keeps its window cache: an Accessibility element read while its window is
+on the current Space keeps working after the user leaves that Space. Gustave remembers the
+element of every window it sees: each window `FocusTracker` sees focused, each window
+`AXWindows` returns for either list, and each window the search finds. Kept in memory only,
+at most 256 windows, least recently seen dropped first (`SeenWindows` in Core, unit tested,
+behind a lock in `SeenWindowElements`, as the Accessibility queues and main all use it).
+A remembered element is used only for a window the window server still lists for that pid
+as a candidate on another Space (the D26 test), and only if it answers a read with the
+short timeout; one that fails is forgotten. Windows the window server no longer has are
+dropped whenever their app's remembered windows are read, which every Option+Tab does for
+every app, and an app's windows go when it quits (observed only while a window feature is
+on). The memory is emptied when both the Dock list
+and the switcher are off, or Accessibility is revoked.
+- The switcher's first step now includes the remembered windows on other Spaces: one read
+  per window, no search, so the first step stays fast and a quick press reaches the window
+  focused before, on any Space.
+- The search, used by the Dock list's second step and the switcher's, reads remembered
+  windows first and looks by element id only for the rest, so once every window has been
+  seen it does not run at all. The Dock list could take them in its first step too
+  (`AppWindows.remembered`), left for the next change to that file.
+- The search's range stays 0 to 999. Raising it would cost a scan of every id up to the
+  new limit on every list, for every app with a window never seen, and would still miss
+  higher ids. Its log line now records how long it took, to decide this on data.
+Not done, to keep steady-state cost at zero: refreshing the memory on every Space change,
+or listing every app at launch. A window never focused or listed since Gustave started,
+whose element id is above 999, is still missing until the user visits its Space and
+focuses it, hovers its app in the Dock, or presses Option+Tab there. No new private API.
+
+Fixed with it, from a review of the switcher by three test agents:
+- A hidden app's windows (Command+H) are returned by `AXWindows` but not on screen, so they
+  had no place in the order and were dropped. They now follow other Spaces, before the
+  minimized windows (`offScreen` in `SwitcherOrder`). Windows without a window id, as when
+  `_AXUIElementGetWindow` is missing, are listed there too instead of the switcher being
+  empty.
+- `AppWindows.list` dropped a whole app when one window failed to read (one closing while
+  listed); only a timeout does that now. Subroles are logged only when they are system
+  values, as they are app-supplied text.
+- Repeated quick presses re-picked the same window: the history learnt of the switch only
+  after the raise, the app's answer and a hop to main. The chosen window now leads the
+  history at once.
+- With no focused window (the desktop, or Gustave's settings), the first press skipped the
+  most recent window. It now selects it (`SwitcherSelection.steps`).
+- Each press queued a full build and a search that ran to the end even after the session
+  was over. A session's work now stops at its end, checked before each app and during the
+  search, so a quick press no longer runs the search at all.
+- Each press read the window server's full list about three times per app. It is now read
+  once per session for every app and both steps, plus the on-screen list.
+- A session whose Option release went unseen (secure input) stayed open with its list up.
+  The show delay and the list's arrival now check Option and switch when it is already up.
+- `FocusTracker` removed its notification from the app being left on the main thread; that
+  call into a possibly frozen app now runs on the Accessibility queue.
+
 ### D28. Settings window identity and launch at login
 Decided 2026-11-06 at the user's request ("a small UI that has an identity kind of like
 Hector", "the setting for Gustave to work on startup"). The settings window uses Hector's
@@ -286,8 +353,7 @@ warm canvas, cards, verdict pill and serif title (tokens copied from Hector's de
 no shared code), and Gustave's mark drawn in code on a 24 point grid like Hector's helmet,
 taken from the app icon. Launch at login uses `SMAppService.mainApp`: the system's own
 login item, no helper, no entitlement; its state is read from the system each time the
-window shows and never stored. Registering works best from a copy in /Applications. (D27 is
-reserved for the switcher work done in parallel.)
+window shows and never stored. Registering works best from a copy in /Applications.
 
 ### D29. Findings of the stability, feature and security testers
 2026-11-06: three agents tested HEAD c7e47ae from code, unit tests and fuzzing (they cannot

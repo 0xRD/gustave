@@ -5,8 +5,10 @@ public struct RecentWindows: Equatable, Sendable {
 
     public private(set) var keys: [WindowKey] = []
 
+    /// A key listed twice keeps its first, most recent, place.
     public init(keys: [WindowKey] = []) {
-        self.keys = Array(keys.prefix(Self.capacity))
+        var seen = Set<WindowKey>()
+        self.keys = Array(keys.filter { seen.insert($0).inserted }.prefix(Self.capacity))
     }
 
     /// The window just gained focus.
