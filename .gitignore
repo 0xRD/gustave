@@ -7,3 +7,5 @@ build/
 *.pem
 Resources/Gustave.icns
 .claude/
+xcuserdata/
+*.cer

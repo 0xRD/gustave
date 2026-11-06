@@ -1,11 +1,10 @@
 # Gustave specification
 
-Version 0.1 draft. Owner: Romain.
+Version 0.1 draft.
 
 ## Goals
 
-- Replace DockDoor and Scroll Reverser for one user's needs with a smaller, offline,
-  auditable app.
+- Replace DockDoor and Scroll Reverser with a smaller, offline, auditable app.
 - Idle cost indistinguishable from zero. It runs from login all day.
 - Minimal privilege: Accessibility only.
 - A small settings window to toggle each feature on and off.
@@ -87,7 +86,8 @@ Acceptance:
 MRU tracking is the hard part: macOS has no public API that returns windows in
 most-recently-used order across apps. Candidate approaches, to evaluate on device in
 M4 and record in `docs/DECISIONS.md` (hard rule 4 forbids private APIs such as
-`_AXUIElementGetWindow` without approval):
+`_AXUIElementGetWindow` without approval; the user later approved it, see D17, D24 and D27
+for what was chosen):
 - A. Z-order: `CGWindowListCopyWindowInfo` returns windows front to back. Windows'
   own list follows z-order, so this approximates MRU. Window names need Screen
   Recording, so match entries to Accessibility windows by pid and frame instead of by

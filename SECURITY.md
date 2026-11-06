@@ -40,7 +40,7 @@ isolated enough that you can read and verify all of it.
 | Threat | Mitigation |
 |---|---|
 | Exfiltration of window titles or input | No network code. Verified in CI and at runtime (`scripts/verify.sh`), and observable in Hector. |
-| Malicious update or supply chain compromise | No updater, no dependencies. Users build from source or verify the release checksum. |
+| Malicious update or supply chain compromise | No updater, no dependencies. Users build from source; checksummed releases are planned (TASKS.md, M5.4). |
 | Spoofed titles (bidi overrides, zero-width characters, huge strings) | `displayTitle` sanitises and bounds input. Covered by unit tests. |
 | A hung app freezes Gustave | AX calls run on a serial background queue with 0.3 s timeouts. Results carry a generation token so stale replies are dropped. |
 | Event tap abuse | The only tap handles scroll-wheel events, does constant-time work, and never reads keys. The tap is installed only while scroll inversion is on. |
@@ -63,8 +63,8 @@ to be built by its user from source.
   system libraries, no networking symbols, no open internet sockets while running.
 - Hector shows no connections for Gustave.
 - Accessibility grant survives two consecutive `scripts/build-app.sh` runs.
-- Idle CPU is zero and wakeups are near zero (see README, "Measuring cost").
+- Idle CPU is zero and wakeups are near zero (`top -pid` or `powermetrics`; recorded measurements are TASKS.md, M5.1).
 
 ## Reporting
 
-Open a private security advisory on the GitHub repository.
+Use GitHub's private vulnerability reporting on this repository (Security, Report a vulnerability).

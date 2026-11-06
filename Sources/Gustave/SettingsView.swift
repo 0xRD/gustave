@@ -161,8 +161,9 @@ private struct SettingToggle: View {
     let detail: String
     let isOn: Binding<Bool>
 
+    /// The text on the left and the switch on the right edge, as in System Settings.
     var body: some View {
-        Toggle(isOn: isOn) {
+        HStack(alignment: .center, spacing: Spacing.md) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
                 Text(detail)
@@ -170,8 +171,11 @@ private struct SettingToggle: View {
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
+            Spacer(minLength: Spacing.sm)
+            Toggle(title, isOn: isOn)
+                .labelsHidden()
+                .toggleStyle(.switch)
         }
-        .toggleStyle(.switch)
     }
 }
 

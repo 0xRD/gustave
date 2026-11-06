@@ -23,6 +23,7 @@ Stop at the end of M0 and wait for my review. Do not start M1.
 
 If anything in the spec is ambiguous or conflicts with a hard rule, stop and ask rather
 than choosing. Do not add dependencies, network code, private APIs or entitlements.
+(Private APIs were later approved case by case: see `docs/DECISIONS.md`, D17, D25, D26.)
 Anything you cannot verify without a real Mac (Accessibility behaviour, scroll events,
 Dock hit testing) must be written down as a manual check, not assumed.
 

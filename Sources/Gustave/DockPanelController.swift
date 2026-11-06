@@ -12,9 +12,11 @@ final class DockPanelController {
     private static let openDuration: TimeInterval = 0.16
     private static let closeDuration: TimeInterval = 0.1
     private static let moveDuration: TimeInterval = 0.12
-    /// Room for the Dock's own name label, which appears next to the hovered icon. Set from
-    /// screenshots on device: the label ends about 9 pt past the icon's frame.
-    private static let tooltipClearance = 15.0
+    /// Close enough to the icon that the panel covers the Dock's own name label while it is
+    /// open, at the user's request; the label shows again when the panel closes. Nothing can
+    /// hide the label itself. From screenshots on device: the label's pointer ends about 8 to
+    /// 9 pt past the icon's frame, so 6 pt covers it with a little room above the icon.
+    private static let tooltipClearance = 6.0
     /// How far the panel slides in from the Dock while opening.
     private static let openOffset = 6.0
     /// Slack around the icon, so the pointer can cross to the panel without it closing.

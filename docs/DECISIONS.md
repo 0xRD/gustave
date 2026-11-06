@@ -388,6 +388,14 @@ window is open (Dock icon, app menu with Close Window, Hide and Quit) and back t
 when the window closes. LSUIElement stays true, so it never shows at login or in the
 background. Supersedes the "no Dock icon" line of D6 and SPEC F4 for that window only.
 
+### D31. Cover the Dock's name label while the panel is open
+Decided 2026-11-06 at the user's request ("it should remove the app name from behind it ...
+if not possible, abort"). The label is drawn by the Dock; no public API and no known private
+function hides it. The panel now sits 6 pt from the icon, which places it over the label,
+so the label is hidden while the panel is open and shows again when it closes. Supersedes
+the 15 pt of D19's follow-up. To check on device: no part of the label shows below the panel,
+and the panel does not cover the icon.
+
 ## Verified on device
 
 - 2026-11-01, macOS 26.6: codesign refuses an untrusted self-signed identity ("no identity
