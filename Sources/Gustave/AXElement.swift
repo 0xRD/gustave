@@ -80,8 +80,10 @@ struct AXElement: @unchecked Sendable {
 }
 
 /// Serial queues for calls into other processes. The Dock gets its own, so a frozen app
-/// whose windows are being listed never delays finding the hovered icon.
+/// whose windows are being listed never delays finding the hovered icon. The search for
+/// windows on other Spaces gets its own too, so raising a window never waits behind it.
 enum AXQueues {
     static let dock = DispatchQueue(label: "io.github.0xrd.gustave.ax.dock", qos: .userInteractive)
     static let windows = DispatchQueue(label: "io.github.0xrd.gustave.ax.windows", qos: .userInitiated)
+    static let otherSpaces = DispatchQueue(label: "io.github.0xrd.gustave.ax.other-spaces", qos: .utility)
 }

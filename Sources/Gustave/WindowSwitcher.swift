@@ -103,13 +103,28 @@ final class WindowSwitcher: ObservableObject {
             .map(\.processIdentifier)
         AXQueues.windows.async { [weak self] in
             let started = Date()
-            let windows = SwitcherWindows.collect(regularApps: regular, excluding: own)
-            let milliseconds = Int(Date().timeIntervalSince(started) * 1000)
-            Self.log.debug("list: \(windows.count) windows from \(regular.count) apps in \(milliseconds) ms")
+            let current = SwitcherWindows.currentSpace(regularApps: regular, excluding: own)
+            let windows = current.ordered
+            Self.log.debug("list: \(windows.count) windows from \(regular.count) apps in \(Self.elapsed(since: started)) ms")
             DispatchQueue.main.async {
                 MainActor.assumeIsolated {
                     guard let self, token == self.generation else { return }
                     self.windowsArrived(windows)
+                }
+            }
+
+            // Other Spaces arrive second, on their own queue, so a quick press never waits
+            // for them and raising the chosen window is not queued behind them.
+            AXQueues.otherSpaces.async {
+                let full = SwitcherWindows.addingOtherSpaces(to: current, regularApps: regular)
+                Self.log.debug("other Spaces: \(full.windows.count - current.windows.count) windows in \(Self.elapsed(since: started)) ms")
+                guard full.windows.count > current.windows.count else { return }
+                let all = full.ordered
+                DispatchQueue.main.async {
+                    MainActor.assumeIsolated {
+                        guard let self, token == self.generation else { return }
+                        self.moreWindowsArrived(all)
+                    }
                 }
             }
         }
@@ -124,6 +139,26 @@ final class WindowSwitcher: ObservableObject {
         }
         pendingShow = work
         DispatchQueue.main.asyncAfter(deadline: .now() + Self.showDelay, execute: work)
+    }
+
+    nonisolated private static func elapsed(since start: Date) -> Int {
+        Int(Date().timeIntervalSince(start) * 1000)
+    }
+
+    /// Windows from other Spaces joined an open list: the selection stays on its window.
+    private func moreWindowsArrived(_ windows: [AppWindow]) {
+        guard let session, let old = session.windows,
+              let selected = SwitcherSelection.index(steps: session.steps, count: old.count)
+        else { return }
+        let key = Self.key(old[selected])
+        let index = SwitcherOrder.index(keeping: key, in: windows.map(Self.key)) ?? selected
+        self.session?.steps = index
+        self.session?.windows = windows
+        render()
+    }
+
+    private static func key(_ window: AppWindow) -> WindowKey {
+        WindowKey(pid: window.pid, windowID: window.windowID ?? 0)
     }
 
     private func windowsArrived(_ windows: [AppWindow]) {

@@ -143,17 +143,20 @@ final class DockPanelController {
                     }
                 }
             }
-            // Windows on other Spaces arrive second: the slower search never delays the panel.
+            // Windows on other Spaces arrive second, on their own queue: the slower search
+            // never delays the panel or a window action.
             guard let windows else { return }
-            let others = AppWindows.otherSpaces(pid: pid, known: windows)
-            DispatchQueue.main.async {
-                MainActor.assumeIsolated {
-                    guard let self, token == self.generation else { return }
-                    let all = windows + others
-                    if all.isEmpty {
-                        self.hide()
-                    } else if !others.isEmpty || !self.isPresented {
-                        self.show(all, of: hover.app)
+            AXQueues.otherSpaces.async {
+                let others = AppWindows.otherSpaces(pid: pid, known: windows)
+                DispatchQueue.main.async {
+                    MainActor.assumeIsolated {
+                        guard let self, token == self.generation else { return }
+                        let all = windows + others
+                        if all.isEmpty {
+                            self.hide()
+                        } else if !others.isEmpty || !self.isPresented {
+                            self.show(all, of: hover.app)
+                        }
                     }
                 }
             }

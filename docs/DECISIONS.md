@@ -209,6 +209,17 @@ followed by never relaunching Gustave would leave auto-hide off until the user t
 on. The screen's visible frame changes while the Dock is held, which windows may notice.
 `CLAUDE.md` rule 4 names D17 only; adding D22 there is left to the user.
 
+### D23. Option+Tab lists windows on every Space
+Decided 2026-11-06 at the user's request, after they found the switcher missing windows
+that DockDoor shows. Supersedes the "current Space" scope of D8 and SPEC F2. The list is
+built in two steps. First the current Space, with every app asked in parallel, so it costs
+about the slowest app instead of the sum (the serial version took 109 to 239 ms for 20
+apps). Then the other-Spaces search of D17, also in parallel, on its own queue: a quick
+press never waits for it, and raising the chosen window is never queued behind it. Windows
+from other Spaces follow the current Space's in the window server's global order, before
+the minimized ones. When they join an open list, the selection stays on its window
+(`SwitcherOrder.index(keeping:in:)`). The Dock list's search moved to the same queue.
+
 ## Verified on device
 
 - 2026-11-01, macOS 26.6: codesign refuses an untrusted self-signed identity ("no identity

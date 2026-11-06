@@ -55,9 +55,9 @@ Acceptance:
 
 ### F2. Option+Tab window switcher
 
-Windows-style Alt+Tab. Decided: the list contains every standard window of every app
-on the current Space, each window as its own entry, ordered by most recently used
-(MRU). Two Chrome windows are two entries, and they sit next to each other if they were
+Windows-style Alt+Tab. Decided: the list contains every standard window of every app,
+each window as its own entry, ordered by most recently used (MRU). Windows on the current
+Space come first, then windows on other Spaces (D23), then minimized windows. Two Chrome windows are two entries, and they sit next to each other if they were
 the last two used.
 
 Behaviour (modelled on Windows):
