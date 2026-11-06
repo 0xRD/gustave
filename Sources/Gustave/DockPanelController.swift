@@ -12,8 +12,9 @@ final class DockPanelController {
     private static let openDuration: TimeInterval = 0.16
     private static let closeDuration: TimeInterval = 0.1
     private static let moveDuration: TimeInterval = 0.12
-    /// Room for the Dock's own name label, which appears next to the hovered icon.
-    private static let tooltipClearance = 38.0
+    /// Room for the Dock's own name label, which appears next to the hovered icon. Set from
+    /// screenshots on device: the label ends about 9 pt past the icon's frame.
+    private static let tooltipClearance = 15.0
     /// How far the panel slides in from the Dock while opening.
     private static let openOffset = 6.0
     /// Slack around the icon, so the pointer can cross to the panel without it closing.
@@ -52,8 +53,10 @@ final class DockPanelController {
             quit: { [weak self] in self?.quit() }
         )
         hostingView = FirstMouseHostingView(rootView: makeView())
+        // Sized explicitly by `layOut`, never by autoresizing: autoresizing would add each
+        // window resize on top of the size already set, leaving the glass taller than the
+        // panel with its top cut off.
         let material = FloatingPanel.materialView(around: hostingView)
-        material.autoresizingMask = [.width, .height]
         materialView = material
         let tracking = HoverTrackingView()
         tracking.addSubview(material)
@@ -225,7 +228,7 @@ final class DockPanelController {
     }
 
     private func layOut(in rect: CGRect) {
-        panel.contentView?.subviews.first?.frame = CGRect(origin: .zero, size: rect.size)
+        materialView.frame = CGRect(origin: .zero, size: rect.size)
     }
 
     private func hide() {

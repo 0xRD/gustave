@@ -215,8 +215,12 @@ out per frame. With Reduce Motion on, the slide is dropped.
   size at open time. When windows from other Spaces arrived during it, the panel was resized,
   then shrunk back as the animation ended, which cut off the header and the rounded corners.
   Every frame change now goes through one setter that replaces any running animation, and
-  only same-size moves animate. The panel also sits 38 pt from the icon, above the Dock's own
-  name label, and the gap between icon and panel counts as inside.
+  only same-size moves animate. The gap between icon and panel counts as inside.
+- 2026-11-06: the clipping had a second, real cause, reproduced in a scratch program. The
+  glass view was sized to the new panel size and also autoresized with the window, so each
+  resize was applied twice (a 160 pt panel got 220 pt of glass, the first open doubled it).
+  The glass is now sized explicitly only. A 38 pt gap put the panel far above the Dock's
+  label; 15 pt is the value read from the user's screenshots.
 
 ## Open questions
 
