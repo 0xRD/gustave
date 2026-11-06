@@ -24,7 +24,7 @@ struct WindowRowView<Controls: View>: View {
         .font(.system(size: 13))
         .foregroundStyle(isHighlighted ? Color.white : Color.primary)
         .padding(.horizontal, 9)
-        .frame(height: 26)
+        .frame(maxHeight: .infinity)
         .background(
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .fill(isHighlighted ? Color(nsColor: .selectedContentBackgroundColor) : Color.clear)

@@ -1,5 +1,6 @@
 import AppKit
 import Combine
+import GustaveCore
 import SwiftUI
 
 /// What the panel shows. Passed by value so the panel can be measured right after a change.
@@ -12,7 +13,7 @@ struct DockPanelContent {
 /// Only the highlight changes without a new measurement.
 @MainActor
 final class DockPanelHover: ObservableObject {
-    @Published var window: AppWindow.ID?
+    @Published var row: Int?
 }
 
 struct DockPanelActions {
@@ -33,27 +34,22 @@ struct DockPanelView: View {
     let actions: DockPanelActions
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 1) {
+        VStack(alignment: .leading, spacing: 0) {
             header
+                .frame(height: DockPanelLayout.headerHeight)
             Divider()
                 .padding(.horizontal, 9)
-                .padding(.vertical, 4)
-            ForEach(content.windows.prefix(Self.maxRows)) { window in
+                .frame(height: DockPanelLayout.separatorHeight)
+            ForEach(Array(content.windows.prefix(Self.maxRows).enumerated()), id: \.element.id) { index, window in
                 WindowRowView(
                     icon: content.icon,
                     title: window.title,
                     isDimmed: window.isMinimized,
-                    isHighlighted: hover.window == window.id
+                    isHighlighted: hover.row == index
                 ) {
                     controls(for: window)
                 }
-                .onHover { inside in
-                    if inside {
-                        hover.window = window.id
-                    } else if hover.window == window.id {
-                        hover.window = nil
-                    }
-                }
+                .frame(height: DockPanelLayout.rowHeight)
                 .onTapGesture { actions.select(window) }
             }
             if content.windows.count > Self.maxRows {
@@ -64,7 +60,7 @@ struct DockPanelView: View {
                     .padding(.top, 2)
             }
         }
-        .padding(5)
+        .padding(DockPanelLayout.padding)
         .frame(width: Self.width)
     }
 
@@ -83,7 +79,6 @@ struct DockPanelView: View {
             .help("Quit")
         }
         .padding(.horizontal, 9)
-        .padding(.top, 4)
     }
 
     private func controls(for window: AppWindow) -> some View {

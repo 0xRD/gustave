@@ -23,7 +23,7 @@ to Apple's SDK.
 
 ### D4. No private APIs
 Consequence: windows on other Spaces are not listed. Revisit only with explicit user
-approval.
+approval. Superseded for windows on other Spaces by D17.
 
 ### D5. Self-signed stable identity
 Accessibility trust is tied to the code signature. An ad-hoc signature changes on every
@@ -113,6 +113,34 @@ Gustave does not use. Rows follow menu metrics (13 pt text, 26 pt rows, selectio
 under the pointer) and show their controls only when highlighted. The content is passed to
 the view by value and measured after rendering, which fixes the clipped panel. Minimizing
 presses the window's minimize button. Restoring clears `AXMinimized`.
+
+### D17. Private Accessibility APIs for windows on other Spaces
+Approved by the user on 2026-11-06, who wants the Dock list to show windows on other
+desktops as DockDoor does. Public Accessibility only returns windows on the current Space.
+Allowed, and nothing else:
+- `_AXUIElementCreateWithRemoteToken` (HIServices): builds an element for a window of an
+  app by its element id, which reaches windows on other Spaces. The approach AltTab uses.
+- `_AXUIElementGetWindow` (HIServices): the window id of an element, to drop duplicates.
+Both are resolved with `dlsym` at run time, never declared for the linker, so a macOS that
+removes them still launches Gustave and simply lists the current Space. Probing is bounded:
+it runs off the main thread, only when the public window list shows the app has windows
+that Accessibility did not return, stops at the first timeout and after 100 ms, and never
+looks past element id 1000. Risks accepted: they can change in any macOS update, and a
+changed signature could crash Gustave. They add no privilege: everything they reach is
+already reachable with Accessibility. Not allowed under this decision: Screen Recording,
+CGS or SkyLight window server calls, private Dock calls. Focusing a window on another
+Space uses public calls first; if that proves unreliable, it needs a new proposal.
+
+### D18. Closing the Dock list, and row highlight while inactive
+Decided 2026-11-06, after the user found the panel staying open when the Dock auto-hid or
+the Space changed. While the panel is visible, and only then, a global monitor for mouse
+moves and clicks is installed: the panel closes 250 ms after the pointer is neither on it
+nor on the icon, at once on a click elsewhere, and at once when the active Space changes.
+The monitor is removed when the panel closes, so the idle cost is unchanged. SwiftUI's hover
+tracking does not run while Gustave is inactive, which hid the row controls. The panel's own
+tracking area reports pointer moves, and the row comes from fixed metrics in Core
+(`DockPanelLayout`). Keeping the Dock shown while the pointer is on the panel is not possible
+with public API: the Dock hides as it does for DockDoor.
 
 ## Verified on device
 

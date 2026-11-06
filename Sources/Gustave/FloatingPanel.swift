@@ -21,6 +21,7 @@ final class FloatingPanel: NSPanel {
         hidesOnDeactivate = false
         isReleasedWhenClosed = false
         animationBehavior = .none
+        acceptsMouseMovedEvents = true
     }
 
     override var canBecomeKey: Bool { false }
@@ -57,9 +58,12 @@ final class FirstMouseHostingView<Content: View>: NSHostingView<Content> {
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 }
 
-/// Reports the pointer entering and leaving, also while Gustave is inactive.
+/// Reports the pointer entering, moving over and leaving the panel, also while Gustave is
+/// inactive, which SwiftUI's own hover tracking does not.
 final class HoverTrackingView: NSView {
     var onHoverChange: ((Bool) -> Void)?
+    /// Distance of the pointer from the top edge, in points.
+    var onMove: ((Double) -> Void)?
 
     override func updateTrackingAreas() {
         super.updateTrackingAreas()
@@ -68,11 +72,20 @@ final class HoverTrackingView: NSView {
         }
         addTrackingArea(NSTrackingArea(
             rect: .zero,
-            options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect],
+            options: [.mouseEnteredAndExited, .mouseMoved, .activeAlways, .inVisibleRect],
             owner: self
         ))
     }
 
-    override func mouseEntered(with event: NSEvent) { onHoverChange?(true) }
+    override func mouseEntered(with event: NSEvent) {
+        onHoverChange?(true)
+        mouseMoved(with: event)
+    }
+
     override func mouseExited(with event: NSEvent) { onHoverChange?(false) }
+
+    override func mouseMoved(with event: NSEvent) {
+        let location = convert(event.locationInWindow, from: nil)
+        onMove?(bounds.height - location.y)
+    }
 }

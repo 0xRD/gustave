@@ -13,7 +13,6 @@ Version 0.1 draft. Owner: Romain.
 ## Non-goals
 
 - Window thumbnails or any screen capture.
-- Windows on other Spaces (needs private APIs).
 - Window tiling, hot corners, themes, plugins, telemetry, auto-update.
 - Distribution through the App Store or notarized releases (self-signed, build from
   source is the primary path).
@@ -35,7 +34,10 @@ the icon. One row per standard window, in the style of DockDoor's compact list.
   full screen toggle. Minimized windows are dimmed.
 - Clicking a row raises that window, restores it if minimized, and activates the app.
 - The panel stays open while the pointer is on the icon or the panel, and closes after
-  a short grace period (about 250 ms) once it leaves both.
+  a short grace period (about 250 ms) once it leaves both. It also closes on a click
+  elsewhere and when the current Space changes.
+- Windows on every Space are listed, including full screen ones (D17). Windows on the
+  current Space come first.
 - Apps with no standard window show no panel.
 - Works with Dock at bottom, left, right, with auto-hide, and with multiple displays.
 - Never steals focus until a row is clicked (non-activating panel).

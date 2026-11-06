@@ -6,6 +6,8 @@ import SwiftUI
 @MainActor
 final class DockPanelController {
     private static let closeDelay: TimeInterval = 0.25
+    /// Slack around the icon, so the pointer can cross to the panel without it closing.
+    private static let iconSlack = 6.0
 
     private let panel = FloatingPanel()
     private let highlight = DockPanelHover()
@@ -17,10 +19,11 @@ final class DockPanelController {
     }
 
     private var hover: DockHover?
-    private var isPointerOnIcon = false
-    private var isPointerOnPanel = false
     private var pendingClose: DispatchWorkItem?
     private var generation = 0
+    /// Present only while the panel is visible, to close it the moment it is left behind.
+    private var dismissMonitor: Any?
+    private var spaceObserver: NSObjectProtocol?
 
     init() {
         actions = DockPanelActions(
@@ -36,6 +39,7 @@ final class DockPanelController {
         let tracking = HoverTrackingView()
         tracking.addSubview(material)
         tracking.onHoverChange = { [weak self] inside in self?.pointerOnPanelChanged(inside) }
+        tracking.onMove = { [weak self] distance in self?.pointerMovedOnPanel(distance) }
         panel.contentView = tracking
     }
 
@@ -55,11 +59,9 @@ final class DockPanelController {
 
     private func hoverChanged(_ newHover: DockHover?) {
         guard let newHover else {
-            isPointerOnIcon = false
             scheduleClose()
             return
         }
-        isPointerOnIcon = true
         cancelClose()
         let isSameApp = newHover.app.processIdentifier == hover?.app.processIdentifier
         hover = newHover
@@ -81,8 +83,20 @@ final class DockPanelController {
                     guard let self, token == self.generation else { return }
                     if let windows, !windows.isEmpty {
                         self.show(windows, of: hover.app)
-                    } else {
+                    }
+                }
+            }
+            // Windows on other Spaces arrive second: the slower search never delays the panel.
+            guard let windows else { return }
+            let others = AppWindows.otherSpaces(pid: pid, known: windows)
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated {
+                    guard let self, token == self.generation else { return }
+                    let all = windows + others
+                    if all.isEmpty {
                         self.hide()
+                    } else if !others.isEmpty || !self.panel.isVisible {
+                        self.show(all, of: hover.app)
                     }
                 }
             }
@@ -95,9 +109,10 @@ final class DockPanelController {
             icon: app.icon,
             windows: windows
         )
-        highlight.window = nil
+        highlight.row = nil
         place()
         panel.orderFrontRegardless()
+        installDismissal()
     }
 
     /// Renders the current content, measures it, and moves the panel next to the icon.
@@ -122,18 +137,81 @@ final class DockPanelController {
     private func hide() {
         generation += 1
         cancelClose()
+        removeDismissal()
         panel.orderOut(nil)
         hover = nil
-        isPointerOnPanel = false
+        highlight.row = nil
         content = DockPanelContent()
     }
 
+    // MARK: Closing
+
+    private func installDismissal() {
+        guard dismissMonitor == nil else { return }
+        dismissMonitor = NSEvent.addGlobalMonitorForEvents(
+            matching: [.mouseMoved, .leftMouseDown, .rightMouseDown, .otherMouseDown]
+        ) { [weak self] event in
+            MainActor.assumeIsolated {
+                // Global monitors only see events for other apps: a click is never on the panel.
+                if event.type == .mouseMoved {
+                    self?.pointerMovedElsewhere()
+                } else {
+                    self?.hide()
+                }
+            }
+        }
+        spaceObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.activeSpaceDidChangeNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.hide() }
+        }
+    }
+
+    private func removeDismissal() {
+        if let dismissMonitor {
+            NSEvent.removeMonitor(dismissMonitor)
+        }
+        if let spaceObserver {
+            NSWorkspace.shared.notificationCenter.removeObserver(spaceObserver)
+        }
+        dismissMonitor = nil
+        spaceObserver = nil
+    }
+
+    private func isPointerInside() -> Bool {
+        let pointer = NSEvent.mouseLocation
+        if panel.frame.contains(pointer) {
+            return true
+        }
+        guard let icon = hover?.iconFrame else { return false }
+        let slack = Self.iconSlack
+        return CGRect(x: icon.x, y: icon.y, width: icon.width, height: icon.height)
+            .insetBy(dx: -slack, dy: -slack)
+            .contains(pointer)
+    }
+
+    private func pointerMovedElsewhere() {
+        if isPointerInside() {
+            cancelClose()
+        } else if pendingClose == nil {
+            scheduleClose()
+        }
+    }
+
     private func pointerOnPanelChanged(_ inside: Bool) {
-        isPointerOnPanel = inside
         if inside {
             cancelClose()
         } else {
+            highlight.row = nil
             scheduleClose()
+        }
+    }
+
+    private func pointerMovedOnPanel(_ distanceFromTop: Double) {
+        let rows = min(content.windows.count, DockPanelView.maxRows)
+        let row = DockPanelLayout.rowIndex(atDistanceFromTop: distanceFromTop, rowCount: rows)
+        if highlight.row != row {
+            highlight.row = row
         }
     }
 
@@ -141,8 +219,11 @@ final class DockPanelController {
         cancelClose()
         let work = DispatchWorkItem { [weak self] in
             MainActor.assumeIsolated {
-                guard let self, !self.isPointerOnIcon, !self.isPointerOnPanel else { return }
-                self.hide()
+                guard let self else { return }
+                self.pendingClose = nil
+                if !self.isPointerInside() {
+                    self.hide()
+                }
             }
         }
         pendingClose = work
@@ -153,6 +234,8 @@ final class DockPanelController {
         pendingClose?.cancel()
         pendingClose = nil
     }
+
+    // MARK: Actions
 
     private func select(_ window: AppWindow) {
         hide()
@@ -177,7 +260,8 @@ final class DockPanelController {
                 pid: window.pid,
                 element: window.element,
                 title: window.title,
-                isMinimized: !window.isMinimized
+                isMinimized: !window.isMinimized,
+                windowID: window.windowID
             )
             place()
         }

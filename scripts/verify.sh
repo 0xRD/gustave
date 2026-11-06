@@ -84,6 +84,23 @@ else
     fail "networking symbols: $found"
 fi
 
+# Private APIs are never linked, and only the ones approved in docs/DECISIONS.md (D17) may
+# be named for lookup at run time.
+linked_private=$(nm -u "$binary" | grep -E '^(__AX|_CGS|_SLS|_CoreDock)')
+if [[ -z "$linked_private" ]]; then
+    pass "no private APIs linked"
+else
+    fail "private APIs linked: $linked_private"
+fi
+
+approved_private='^_AXUIElement(CreateWithRemoteToken|GetWindow)$'
+named_private=$(strings -a "$binary" | grep -E '^_(AX|CGS|SLS|CoreDock)[A-Za-z]+$' | grep -vE "$approved_private")
+if [[ -z "$named_private" ]]; then
+    pass "only approved private APIs looked up"
+else
+    fail "unapproved private API names: $named_private"
+fi
+
 if [[ "$ci" == 0 ]]; then
     pid=$(pgrep -x Gustave | head -1)
     if [[ -z "$pid" ]]; then

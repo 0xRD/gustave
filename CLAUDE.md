@@ -18,8 +18,10 @@ Read, in this order: `SPEC.md`, `SECURITY.md`, `TASKS.md`, `docs/DECISIONS.md`.
 2. No network code of any kind. No URLSession, no sockets, no update checker, no
    analytics, no crash reporter.
 3. No third-party dependencies. `Package.swift` must never gain a dependency.
-4. No private or undocumented APIs. If something needs one, stop and write a proposal in
-   `docs/DECISIONS.md` for the user to approve.
+4. No private or undocumented APIs, except the ones the user approved in
+   `docs/DECISIONS.md` (D17: windows on other Spaces). Approved ones are looked up at run
+   time and their feature degrades when they are missing. For anything else, stop and
+   write a proposal in `docs/DECISIONS.md` for the user to approve.
 5. No entitlements, no privileged helper, no XPC service. Hardened runtime stays on.
 6. A disabled feature is removed, not paused: its monitor or event tap is uninstalled.
 7. No timers or polling in steady state. Idle wakeups must be near zero.

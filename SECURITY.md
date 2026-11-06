@@ -26,7 +26,8 @@ isolated enough that you can read and verify all of it.
    Automation, no Full Disk Access.
 2. No network access of any kind. No analytics, no update check.
 3. No third-party dependencies. `Package.swift` must not list any.
-4. No private APIs. Windows on other Spaces are not listed as a consequence.
+4. No private APIs, except the Accessibility ones approved in `docs/DECISIONS.md` (D17)
+   to list and focus windows on other Spaces. They grant no privilege beyond Accessibility.
 5. No privileged helper and no entitlements. The hardened runtime is on.
 6. A disabled feature is removed, not paused: its event monitor or tap is uninstalled.
 7. Window titles and app names are never interpreted: no URL opening, no shell, no
@@ -42,6 +43,7 @@ isolated enough that you can read and verify all of it.
 | A hung app freezes Gustave | AX calls run on a serial background queue with 0.3 s timeouts. Results carry a generation token so stale replies are dropped. |
 | Event tap abuse | The only tap handles scroll-wheel events, does constant-time work, and never reads keys. The tap is installed only while scroll inversion is on. |
 | Permission lost after a rebuild (ad-hoc signature) | Stable self-signed identity (`scripts/make-cert.sh`) so the designated requirement stays the same. |
+| Private API changes in a macOS update | Looked up with `dlsym` at run time, never linked. Missing symbols turn the feature off for other Spaces, and the app still launches. Signatures are reviewed on each macOS major release. |
 | Tampered binary on disk | Hardened runtime and signature. `codesign --verify --strict` is part of `scripts/verify.sh`. |
 | Compromise of Gustave through Hector, or the reverse | Separate processes, separate bundles, no shared IPC. |
 
