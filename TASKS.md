@@ -107,7 +107,7 @@ Status: [ ] todo, [~] in progress, [x] done.
 - [ ] M5.2 Security review pass against `SECURITY.md`. Update the threat model with
   anything learned.
 - [~] M5.3 Launch at login, silent start, final settings polish.
-- [~] M5.4 README update, release checklist, checksummed GitHub release, optional
+- [x] M5.4 README update, release checklist, checksummed GitHub release, optional
   Homebrew tap cask (self-signed, build from source stays primary).
 - [ ] M5.5 When the repository is public: sign tagged releases in GitHub Actions with a
   dedicated release certificate stored as a secret (see `docs/DECISIONS.md`, D10).

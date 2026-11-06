@@ -477,6 +477,11 @@ signing to CI (D10, M5.5) would change the certificate, so users would grant onc
   inside keep the dark appearance (checked with a glass panel over a white window), so white
   text becomes unreadable. The appearance does not follow the glass; a fix is being chosen
   with the user from live samples.
+- 2026-11-06: v0.1.0 published (`scripts/release.sh`). The downloaded archive matches the
+  printed SHA-256 (4dd94a1d...bc4b) and its app verifies, with the designated requirement
+  pinning the local certificate. The cask is in 0xRD/homebrew-tap (714464a); the tap's CI ran
+  `brew style` (no offenses) and `brew audit --cask --online`, which downloaded the release,
+  and passed. Not yet installed through Homebrew on a Mac.
 
 ## Open questions
 
