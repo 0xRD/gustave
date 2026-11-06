@@ -94,7 +94,9 @@ else
 fi
 
 approved_private='^(_AXUIElement(CreateWithRemoteToken|GetWindow)|CoreDock(Get|Set)AutoHideEnabled)$'
-named_private=$(strings -a "$binary" | grep -E '^(_AX|_?CGS|_?SLS|_?CoreDock)[A-Za-z]+$' | grep -vE "$approved_private")
+# CGS and SLS names continue with a capital letter, which keeps public CGSize out.
+named_private=$(strings -a "$binary" | grep -E '^(_AX[A-Za-z]+|_?(CGS|SLS)[A-Z][A-Za-z]*|_?CoreDock[A-Za-z]+)$' \
+    | grep -vE "$approved_private")
 if [[ -z "$named_private" ]]; then
     pass "only approved private APIs looked up"
 else
