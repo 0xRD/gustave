@@ -74,6 +74,10 @@ Status: [ ] todo, [~] in progress, [x] done.
   to the screen.
   - Accept (manual): bottom, left, right and auto-hide Docks, two displays, a frozen
     app, a window with hostile title text, Stage Manager on and off.
+  - Done on device (2026-11-06): bottom Dock, auto-hide, windows on other Spaces (D17),
+    glass and animation (D19), closing rules (D18, `DockPanelRule`), focus never taken.
+  - Open: minimize and close from a row (no log line seen yet), left and right Docks,
+    two displays, a frozen app, a hostile title, Stage Manager.
 
 ## M4. Option+Tab switcher (F2)
 
