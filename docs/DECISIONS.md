@@ -221,6 +221,12 @@ out per frame. With Reduce Motion on, the slide is dropped.
   resize was applied twice (a 160 pt panel got 220 pt of glass, the first open doubled it).
   The glass is now sized explicitly only. A 38 pt gap put the panel far above the Dock's
   label; 15 pt is the value read from the user's screenshots.
+- 2026-11-06: moving from a running app to the icon of an app that is not running left the
+  panel open. The Dock reported a selection Gustave could not map to a running app, which
+  was handled as "left the Dock", and the pointer was still inside the panel and icon area.
+  Another Dock item (an app that is not running, a folder, the Trash) now closes the panel
+  at once (`DockPanelRule`). The grace period applies only when nothing is selected.
+- 2026-11-06: the user confirmed the panel now renders whole, with its title and corners.
 
 ## Open questions
 

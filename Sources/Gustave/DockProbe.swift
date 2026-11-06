@@ -37,17 +37,24 @@ enum DockProbe {
         return Subscription(observer: observer, list: list)
     }
 
-    /// The selected app icon, or nil when the pointer is on no app icon.
-    static func selectedItem(in list: AXElement) -> DockItem? {
+    enum Selection: Sendable {
+        /// Nothing selected: the pointer is not on the Dock.
+        case nothing
+        /// An item that is not an app icon, such as a folder or the Trash.
+        case otherItem
+        case app(DockItem)
+    }
+
+    static func selection(in list: AXElement) -> Selection {
         guard let selected = list.value(kAXSelectedChildrenAttribute) as? [AXUIElement],
               let first = selected.first
-        else { return nil }
+        else { return .nothing }
         let element = AXElement(first)
         guard element.string(kAXSubroleAttribute) == "AXApplicationDockItem",
               let url = element.value(kAXURLAttribute) as? URL,
               let origin = element.point(kAXPositionAttribute),
               let size = element.size(kAXSizeAttribute)
-        else { return nil }
-        return DockItem(appURL: url, frame: Rect(x: origin.x, y: origin.y, width: size.width, height: size.height))
+        else { return .otherItem }
+        return .app(DockItem(appURL: url, frame: Rect(x: origin.x, y: origin.y, width: size.width, height: size.height)))
     }
 }

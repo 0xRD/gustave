@@ -26,8 +26,8 @@ final class DockPanelController {
     private var actions: DockPanelActions!
     private var hostingView: FirstMouseHostingView<DockPanelView>!
     private var materialView: NSView!
-    private lazy var observer = DockHoverObserver { [weak self] hover in
-        self?.hoverChanged(hover)
+    private lazy var observer = DockHoverObserver { [weak self] event in
+        self?.dockPointerChanged(event)
     }
 
     private var hover: DockHover?
@@ -81,14 +81,23 @@ final class DockPanelController {
         }
     }
 
+    private func dockPointerChanged(_ event: DockHoverEvent) {
+        cancelShow()
+        switch DockPanelRule.response(to: event.pointer) {
+        case .closeAfterGrace:
+            scheduleClose()
+        case .closeNow:
+            hide()
+        case .show:
+            if case .app(let hover) = event {
+                hoverChanged(hover)
+            }
+        }
+    }
+
     /// The first icon waits for the delay. Once the panel is open, moving along the Dock
     /// switches at once, as tooltips do.
-    private func hoverChanged(_ newHover: DockHover?) {
-        cancelShow()
-        guard let newHover else {
-            scheduleClose()
-            return
-        }
+    private func hoverChanged(_ newHover: DockHover) {
         cancelClose()
         let isSameApp = newHover.app.processIdentifier == hover?.app.processIdentifier
         hover = newHover

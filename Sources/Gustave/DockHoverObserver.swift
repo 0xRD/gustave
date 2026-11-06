@@ -2,6 +2,21 @@ import AppKit
 import ApplicationServices
 import GustaveCore
 
+/// What is under the pointer in the Dock.
+enum DockHoverEvent {
+    case outside
+    case otherItem
+    case app(DockHover)
+
+    var pointer: DockPointer {
+        switch self {
+        case .outside: .outside
+        case .otherItem: .otherItem
+        case .app(let hover): .app(pid: hover.app.processIdentifier)
+        }
+    }
+}
+
 /// The running app whose Dock icon is under the pointer.
 struct DockHover {
     let app: NSRunningApplication
@@ -15,16 +30,16 @@ struct DockHover {
 /// every change through Accessibility, so there is no mouse monitor and no polling.
 @MainActor
 final class DockHoverObserver {
-    private let onChange: (DockHover?) -> Void
+    private let onChange: (DockHoverEvent) -> Void
 
     private var isRunning = false
     private var observer: AXObserver?
     private var list: AXElement?
     private var workspaceObservers: [NSObjectProtocol] = []
-    private var current: DockHover?
+    private var current: DockHoverEvent = .outside
     private var generation = 0
 
-    init(onChange: @escaping (DockHover?) -> Void) {
+    init(onChange: @escaping (DockHoverEvent) -> Void) {
         self.onChange = onChange
     }
 
@@ -51,7 +66,7 @@ final class DockHoverObserver {
         }
         workspaceObservers = []
         detach()
-        current = nil
+        current = .outside
     }
 
     private func attach() {
@@ -96,11 +111,19 @@ final class DockHoverObserver {
         let token = generation
         let primaryHeight = primary.frame.height
         AXQueues.dock.async { [weak self] in
-            let item = DockProbe.selectedItem(in: list)
+            let selection = DockProbe.selection(in: list)
             DispatchQueue.main.async {
                 MainActor.assumeIsolated {
                     guard let self, token == self.generation else { return }
-                    self.report(item.flatMap { self.hover(for: $0, primaryHeight: primaryHeight) })
+                    switch selection {
+                    case .nothing:
+                        self.report(.outside)
+                    case .otherItem:
+                        self.report(.otherItem)
+                    case .app(let item):
+                        // An app that is not running is just another item.
+                        self.report(self.hover(for: item, primaryHeight: primaryHeight).map(DockHoverEvent.app) ?? .otherItem)
+                    }
                 }
             }
         }
@@ -123,12 +146,15 @@ final class DockHoverObserver {
         return DockHover(app: app, iconFrame: iconFrame, edge: edge, screenFrame: frame)
     }
 
-    private func report(_ hover: DockHover?) {
-        guard hover?.app.processIdentifier != current?.app.processIdentifier
-            || hover?.iconFrame != current?.iconFrame
-        else { return }
-        current = hover
-        onChange(hover)
+    private func report(_ event: DockHoverEvent) {
+        if case .app(let new) = event, case .app(let old) = current {
+            guard new.app.processIdentifier != old.app.processIdentifier || new.iconFrame != old.iconFrame
+            else { return }
+        } else if event.pointer == current.pointer {
+            return
+        }
+        current = event
+        onChange(event)
     }
 }
 
