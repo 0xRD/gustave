@@ -289,6 +289,31 @@ login item, no helper, no entitlement; its state is read from the system each ti
 window shows and never stored. Registering works best from a copy in /Applications. (D27 is
 reserved for the switcher work done in parallel.)
 
+### D29. Findings of the stability, feature and security testers
+2026-11-06: three agents tested HEAD c7e47ae from code, unit tests and fuzzing (they cannot
+drive the UI). Fixed here, in c8e7e66 and the commit after it:
+- Dock list: the panel kept the previous app's rows, and Quit could quit the hovered app
+  instead of the one shown (`DockPanelContent.app`); a non-answering app now hides it.
+- Dock list: row controls vanished after a refresh under a still pointer; the header lacked
+  the app icon (SPEC F1); the panel could cover the menu bar; "1 more windows".
+- Dock list: work queued for an older hover now stops before starting (`GenerationToken`).
+- Dock observer: reattaching relied on launch notifications that are not reliably posted for
+  the Dock, a UI element app. It now observes the running apps list (an event) and retries
+  the subscription 5 times, 0.5 s apart, after a Dock change. Unsubscribing runs off main.
+- `DisplayTitle` could return 121 characters for a clipped input; fuzz tests kept.
+- Settings reopen when Accessibility is revoked while running (SPEC F4).
+- The Carbon handler is removed when a shortcut cannot be registered.
+- `verify.sh` also checks the source: every name looked up at run time must be an approved
+  literal. Names of 15 bytes or less never appear in `strings` output, so the binary check
+  alone could miss them. Checked both ways: a lookup of "SLSMoveWindow" fails it.
+Passed to the switcher work (D27): hidden apps on the current Space, failed reads in
+`AppWindows.list`, quick presses within 100 ms, missing `_AXUIElementGetWindow`, stale
+switcher work, window server snapshots per press, a missed Option release, the main-thread
+unsubscribe in `FocusTracker`, public logging of app-supplied subroles.
+Not done yet: moving the scroll tap off the main run loop (a main-thread stall delays
+scrolling); confirming on device that "Option+Tab is taken" is ever reported; removing the
+D25 recovery after a release.
+
 ## Verified on device
 
 - 2026-11-01, macOS 26.6: codesign refuses an untrusted self-signed identity ("no identity

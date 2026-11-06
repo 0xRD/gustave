@@ -84,9 +84,9 @@ else
     fail "networking symbols: $found"
 fi
 
-# Private APIs are never linked, and only the ones approved in docs/DECISIONS.md (D17) may
-# be named for lookup at run time.
-linked_private=$(nm -u "$binary" | grep -E '^(__AX|_CGS|_SLS|_CoreDock)')
+# Private APIs are never linked, and only the ones approved in docs/DECISIONS.md may be
+# named for lookup at run time.
+linked_private=$(nm -u "$binary" | grep -E '^(__AX|__?CGS[A-Z]|__?SLS[A-Z]|__?SLPS[A-Z]|__?CoreDock)')
 if [[ -z "$linked_private" ]]; then
     pass "no private APIs linked"
 else
@@ -101,6 +101,19 @@ if [[ -z "$named_private" ]]; then
     pass "only approved private APIs looked up"
 else
     fail "unapproved private API names: $named_private"
+fi
+
+# The binary check above cannot see names of 15 bytes or less, which Swift stores inside the
+# code. So the source is checked too: every name passed to dlsym or to a symbol helper must
+# be a string literal on the approved list.
+lookups=$(grep -rhoE '(dlsym\([^,]*, *|symbol\()[^)]*' Sources | sed -E 's/^(dlsym\([^,]*, *|symbol\()//')
+unapproved=$(print -r -- "$lookups" | grep -vE '^"[A-Za-z_]+"' | grep -vE '^name$' )
+unlisted=$(print -r -- "$lookups" | grep -oE '^"[A-Za-z_]+"' | tr -d '"' \
+    | grep -vE "$approved_private" | grep -vx 'GetProcessForPID')
+if [[ -z "$unapproved$unlisted" ]]; then
+    pass "every looked up name is an approved literal"
+else
+    fail "unapproved lookups in source: $unapproved $unlisted"
 fi
 
 if [[ "$ci" == 0 ]]; then

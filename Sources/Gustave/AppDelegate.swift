@@ -12,6 +12,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let dockPanel = DockPanelController()
     private let switcher = WindowSwitcher()
     private var subscription: AnyCancellable?
+    private var revocation: AnyCancellable?
     private lazy var settingsWindow = SettingsWindowController(
         store: store,
         permission: permission,
@@ -25,6 +26,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let defaults = UserDefaults.standard
         let isFirstLaunch = !defaults.bool(forKey: Self.hasLaunchedKey)
         defaults.set(true, forKey: Self.hasLaunchedKey)
+
+        // SPEC F4: the window shows whenever Accessibility is missing, also when it is
+        // taken away while Gustave runs.
+        revocation = permission.$isGranted
+            .removeDuplicates()
+            .dropFirst()
+            .filter { !$0 }
+            .sink { [weak self] _ in self?.settingsWindow.show() }
 
         subscription = store.$settings
             .combineLatest(permission.$isGranted)

@@ -26,7 +26,10 @@ final class HotKeyCenter {
             UInt32(keyCode), UInt32(modifiers),
             EventHotKeyID(signature: Self.signature, id: id),
             GetApplicationEventTarget(), 0, &ref)
-        guard status == noErr, let ref else { return nil }
+        guard status == noErr, let ref else {
+            removeHandlerIfUnused()
+            return nil
+        }
         hotKeys[id] = (ref, action)
         return id
     }
@@ -34,10 +37,13 @@ final class HotKeyCenter {
     func unregister(_ id: UInt32) {
         guard let entry = hotKeys.removeValue(forKey: id) else { return }
         UnregisterEventHotKey(entry.ref)
-        if hotKeys.isEmpty, let handlerRef {
-            RemoveEventHandler(handlerRef)
-            self.handlerRef = nil
-        }
+        removeHandlerIfUnused()
+    }
+
+    private func removeHandlerIfUnused() {
+        guard hotKeys.isEmpty, let handlerRef else { return }
+        RemoveEventHandler(handlerRef)
+        self.handlerRef = nil
     }
 
     fileprivate func handle(id: UInt32, kind: UInt32) {

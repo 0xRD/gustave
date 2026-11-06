@@ -98,6 +98,8 @@ Status: [ ] todo, [~] in progress, [x] done.
 
 ## M5. Hardening and release
 
+- [ ] M5.0 Move the scroll event tap to its own thread and run loop, so a main-thread stall
+  never delays scrolling (D29).
 - [ ] M5.1 Cost measurements recorded in `docs/DECISIONS.md`: idle CPU, wakeups
   (`powermetrics`), hover cost (Instruments).
 - [ ] M5.2 Security review pass against `SECURITY.md`. Update the threat model with
