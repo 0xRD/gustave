@@ -178,6 +178,11 @@ with public API: the Dock hides as it does for DockDoor.
   some hovers showed nothing. Focus was never taken. Fixes in D15 and D16. The missing
   windows are not explained yet: windows on other Spaces are expected to be missing (D4).
   `AppWindows` logs counts and subroles at debug level, without titles, to find out.
+- 2026-11-06, macOS 26.6, debug log from the user's test: Mail, Messages and Photos report
+  their main window as `AXDialog`, so dialogs at window layer 0 are now listed too (as
+  DockDoor does). Safari reported 0 windows while its windows were on another Space.
+  Pressing Safari's minimize button through Accessibility failed. The log now records the
+  AXError of each step, and the panel re-reads the windows after an action.
 
 ## Open questions
 

@@ -45,7 +45,7 @@ enum AppWindows {
         for raw in windows.prefix(maxWindows) {
             let window = AXElement(raw)
             guard let values = window.values(attributes) else { return nil }
-            guard values[0] as? String == kAXStandardWindowSubrole as String else {
+            guard isSwitchable(window, subrole: values[0] as? String) else {
                 skipped.append(values[0] as? String ?? "none")
                 continue
             }
@@ -75,11 +75,31 @@ enum AppWindows {
             let window = AXElement(raw)
             guard let values = window.values(attributes) else { break }
             remaining.remove(windowID)
-            guard values[0] as? String == kAXStandardWindowSubrole as String else { continue }
+            guard isSwitchable(window, subrole: values[0] as? String) else { continue }
             found.append(makeWindow(window, pid: pid, id: known.count + found.count, values: values))
         }
         log.debug("pid \(pid): \(missing.count) windows not on this Space, \(found.count) found")
         return found
+    }
+
+    /// Standard windows, and dialogs at the normal window level: on macOS 26 the main
+    /// windows of Mail, Messages and Photos report the dialog subrole. Floating dialogs,
+    /// such as reminders, stay out. The rule DockDoor uses.
+    private static func isSwitchable(_ window: AXElement, subrole: String?) -> Bool {
+        switch subrole {
+        case kAXStandardWindowSubrole:
+            return true
+        case kAXDialogSubrole:
+            guard let id = PrivateAccessibility.windowID(of: window.raw) else { return true }
+            return windowLayer(id) == 0
+        default:
+            return false
+        }
+    }
+
+    private static func windowLayer(_ id: CGWindowID) -> Int? {
+        let list = CGWindowListCopyWindowInfo(.optionIncludingWindow, id) as? [[String: Any]]
+        return list?.first?[kCGWindowLayer as String] as? Int
     }
 
     /// Ids of the app's windows that could be standard windows, on any Space. Public, and
@@ -126,17 +146,26 @@ enum AppWindows {
     }
 
     static func close(_ window: AppWindow) {
-        let didApply = window.element.element(kAXCloseButtonAttribute)?.perform(kAXPressAction) ?? false
-        log.debug("pid \(window.pid): close applied \(didApply)")
+        let button = window.element.element(kAXCloseButtonAttribute)
+        let pressed = button?.perform(kAXPressAction)
+        log.debug("pid \(window.pid): close, button \(button != nil), press \(pressed?.rawValue ?? 0)")
     }
 
-    /// Minimizing presses the window's button, which every app honours. A minimized window
-    /// has no usable button, so restoring clears the attribute.
+    /// Sets the attribute, and presses the window's minimize button if the app refuses it.
     static func toggleMinimized(_ window: AppWindow) {
-        let didApply = window.isMinimized
-            ? window.element.set(kAXMinimizedAttribute, kCFBooleanFalse)
-            : window.element.element(kAXMinimizeButtonAttribute)?.perform(kAXPressAction) ?? false
-        log.debug("pid \(window.pid): minimize toggle applied \(didApply)")
+        if window.isMinimized {
+            let error = window.element.set(kAXMinimizedAttribute, kCFBooleanFalse)
+            log.debug("pid \(window.pid): restore, set \(error.rawValue)")
+            return
+        }
+        let error = window.element.set(kAXMinimizedAttribute, kCFBooleanTrue)
+        guard error != .success, error != .cannotComplete else {
+            log.debug("pid \(window.pid): minimize, set \(error.rawValue)")
+            return
+        }
+        let button = window.element.element(kAXMinimizeButtonAttribute)
+        let pressed = button?.perform(kAXPressAction)
+        log.debug("pid \(window.pid): minimize, set \(error.rawValue), button \(button != nil), press \(pressed?.rawValue ?? 0)")
     }
 
     /// Presses the window's own full screen button, which toggles in both directions.

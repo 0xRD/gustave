@@ -6,6 +6,8 @@ import SwiftUI
 @MainActor
 final class DockPanelController {
     private static let closeDelay: TimeInterval = 0.25
+    /// Apps animate a close or minimize before reporting it.
+    private static let refreshDelay: TimeInterval = 0.4
     /// Slack around the icon, so the pointer can cross to the panel without it closing.
     private static let iconSlack = 6.0
 
@@ -243,27 +245,21 @@ final class DockPanelController {
     }
 
     private func close(_ window: AppWindow) {
-        AXQueues.windows.async { AppWindows.close(window) }
-        content.windows.removeAll { $0.id == window.id }
-        if content.windows.isEmpty {
-            hide()
-        } else {
-            place()
-        }
+        perform({ AppWindows.close($0) }, on: window)
     }
 
     private func toggleMinimized(_ window: AppWindow) {
-        AXQueues.windows.async { AppWindows.toggleMinimized(window) }
-        if let index = content.windows.firstIndex(where: { $0.id == window.id }) {
-            content.windows[index] = AppWindow(
-                id: window.id,
-                pid: window.pid,
-                element: window.element,
-                title: window.title,
-                isMinimized: !window.isMinimized,
-                windowID: window.windowID
-            )
-            place()
+        perform({ AppWindows.toggleMinimized($0) }, on: window)
+    }
+
+    /// Runs the action, then shows what the app reports afterwards rather than a guess.
+    private func perform(_ action: @escaping @Sendable (AppWindow) -> Void, on window: AppWindow) {
+        AXQueues.windows.async { action(window) }
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.refreshDelay) { [weak self] in
+            MainActor.assumeIsolated {
+                guard let self, let hover = self.hover, hover.app.processIdentifier == window.pid else { return }
+                self.loadWindows(for: hover)
+            }
         }
     }
 

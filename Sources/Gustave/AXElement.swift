@@ -64,13 +64,13 @@ struct AXElement: @unchecked Sendable {
     }
 
     @discardableResult
-    func set(_ attribute: String, _ value: CFTypeRef) -> Bool {
-        AXUIElementSetAttributeValue(raw, attribute as CFString, value) == .success
+    func set(_ attribute: String, _ value: CFTypeRef) -> AXError {
+        AXUIElementSetAttributeValue(raw, attribute as CFString, value)
     }
 
     @discardableResult
-    func perform(_ action: String) -> Bool {
-        AXUIElementPerformAction(raw, action as CFString) == .success
+    func perform(_ action: String) -> AXError {
+        AXUIElementPerformAction(raw, action as CFString)
     }
 
     private func axValue<T: BitwiseCopyable>(_ attribute: String, type: AXValueType, into result: inout T) -> Bool {
