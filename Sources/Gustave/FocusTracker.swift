@@ -1,6 +1,7 @@
 import AppKit
 import ApplicationServices
 import GustaveCore
+import os
 
 /// Records which window the user focuses, across Spaces, so Option+Tab can order windows as
 /// Command+Tab orders apps. Event driven: app activation from NSWorkspace, plus one
@@ -8,11 +9,14 @@ import GustaveCore
 /// and nothing exists while the switcher is off.
 @MainActor
 final class FocusTracker {
+    nonisolated private static let log = Logger(subsystem: "io.github.0xrd.gustave", category: "focus")
+
     private(set) var recent = RecentWindows()
 
     private var workspaceObservers: [NSObjectProtocol] = []
     private var observer: AXObserver?
     private var observedApp: AXElement?
+    private var observedPID: pid_t?
     private var generation = 0
 
     var isRunning: Bool { !workspaceObservers.isEmpty }
@@ -54,12 +58,23 @@ final class FocusTracker {
     private func appActivated(_ pid: pid_t) {
         guard pid != ProcessInfo.processInfo.processIdentifier else { return }
         observe(pid)
+        recordFocusedWindow(of: pid, reason: "app activated")
+    }
+
+    /// Reads the app's focused window itself rather than trusting what a notification
+    /// passes, which differs between apps.
+    private func recordFocusedWindow(of pid: pid_t, reason: StaticString) {
         let app = AXElement.application(pid)
         AXQueues.windows.async { [weak self] in
-            guard let window = app.element(kAXFocusedWindowAttribute) else { return }
-            let key = Self.key(of: window.raw, pid: pid)
+            guard let window = app.element(kAXFocusedWindowAttribute),
+                  let key = Self.key(of: window.raw, pid: pid)
+            else {
+                Self.log.debug("\(reason): pid \(pid), no focused window id")
+                return
+            }
+            Self.log.debug("\(reason): pid \(pid), window \(key.windowID)")
             DispatchQueue.main.async {
-                MainActor.assumeIsolated { key.map { self?.recent.touch($0) } }
+                MainActor.assumeIsolated { self?.recent.touch(key) }
             }
         }
     }
@@ -84,6 +99,7 @@ final class FocusTracker {
                     guard let self, token == self.generation, self.isRunning else { return }
                     self.observer = observer.observer
                     self.observedApp = app
+                    self.observedPID = pid
                     CFRunLoopAddSource(CFRunLoopGetMain(), AXObserverGetRunLoopSource(observer.observer), .commonModes)
                 }
             }
@@ -100,19 +116,12 @@ final class FocusTracker {
         }
         observer = nil
         observedApp = nil
+        observedPID = nil
     }
 
-    fileprivate func windowFocused(_ element: AXUIElement) {
-        let window = AXElement(element)
-        AXQueues.windows.async { [weak self] in
-            var pid: pid_t = 0
-            guard AXUIElementGetPid(window.raw, &pid) == .success,
-                  let key = Self.key(of: window.raw, pid: pid)
-            else { return }
-            DispatchQueue.main.async {
-                MainActor.assumeIsolated { self?.recent.touch(key) }
-            }
-        }
+    fileprivate func focusChanged() {
+        guard let observedPID else { return }
+        recordFocusedWindow(of: observedPID, reason: "window focused")
     }
 
     nonisolated private static func key(of window: AXUIElement, pid: pid_t) -> WindowKey? {
@@ -130,5 +139,5 @@ private func focusedWindowChanged(
     guard let refcon else { return }
     // The run loop source is on the main run loop.
     let tracker = Unmanaged<FocusTracker>.fromOpaque(refcon).takeUnretainedValue()
-    MainActor.assumeIsolated { tracker.windowFocused(element) }
+    MainActor.assumeIsolated { tracker.focusChanged() }
 }

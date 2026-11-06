@@ -20,11 +20,14 @@ enum AppWindows {
 
     /// Apps with more windows than this are cut short: the list is for picking, not auditing.
     static let maxWindows = 64
-    /// Bounds on the search for windows on other Spaces (D17).
-    static let otherSpacesBudget: TimeInterval = 0.1
+    /// Bounds on the search for windows on other Spaces (D17, D26). The search runs only for
+    /// apps that really have a window on another Space, so it can cover every element id;
+    /// the time limit is a backstop for an app that answers each call slowly.
+    static let otherSpacesBudget: TimeInterval = 1.0
     static let maxElementID: UInt64 = 1000
     /// Smaller windows are tab bars, popovers and other parts of a window.
-    static let minimumWindowSide = 100.0
+    static let minimumWindowWidth = 100.0
+    static let minimumWindowHeight = 50.0
 
     private static let attributes = [
         kAXSubroleAttribute as String,
@@ -59,11 +62,13 @@ enum AppWindows {
 
     /// Windows on other Spaces, found by asking the app for elements by id (D17). Empty when
     /// the public window list shows nothing that `known` does not already cover.
-    static func otherSpaces(pid: pid_t, known: [AppWindow]) -> [AppWindow] {
+    /// `appIsHidden`: the app was hidden (Command+H), so its windows may belong to no Space
+    /// while still being real windows.
+    static func otherSpaces(pid: pid_t, known: [AppWindow], appIsHidden: Bool) -> [AppWindow] {
         guard PrivateAccessibility.isAvailable else { return [] }
         let knownIDs = Set(known.compactMap(\.windowID))
         let layers = windowLayers(pid: pid)
-        let missing = windowServerWindows(pid: pid).subtracting(knownIDs)
+        let missing = windowServerWindows(pid: pid, appIsHidden: appIsHidden).subtracting(knownIDs)
         guard !missing.isEmpty else { return [] }
 
         let deadline = Date().addingTimeInterval(otherSpacesBudget)
@@ -76,22 +81,25 @@ enum AppWindows {
             guard elementID < maxElementID else { stop = "id limit"; break }
             guard Date() < deadline else { stop = "time budget"; break }
             defer { elementID += 1 }
-            guard let raw = PrivateAccessibility.element(pid: pid, elementID: elementID),
-                  let windowID = PrivateAccessibility.windowID(of: raw),
-                  remaining.contains(windowID)
-            else { continue }
+            // Wrapped first, so even the window id lookup has the short timeout: a frozen app
+            // costs the time budget, not the system's default timeout per call.
+            guard let raw = PrivateAccessibility.element(pid: pid, elementID: elementID) else { continue }
             let window = AXElement(raw)
+            guard let windowID = PrivateAccessibility.windowID(of: window.raw), remaining.contains(windowID)
+            else { continue }
             let read = window.readValues(attributes)
             // Only a timeout means the app is not answering. Any other failure is this one
             // element, and the rest of the app's windows are still worth looking for.
             if read.error == .cannotComplete { stop = "timeout"; break }
             remaining.remove(windowID)
             guard let values = read.values else { skipped.unreadable += 1; continue }
-            // Hidden helper windows, such as an Electron app's background window, have no
-            // title. Windows on the current Space are not filtered this way: public
-            // Accessibility already leaves hidden windows out.
-            let title = (values[1] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !title.isEmpty else { skipped.untitled += 1; continue }
+            // Hidden helper windows never reach here: they belong to no Space, so they are
+            // not candidates. Without Space information, or for a hidden app whose windows are
+            // not tested that way, a missing title is the fallback test.
+            if !PrivateWindowServer.canReadSpaces || appIsHidden {
+                let title = (values[1] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !title.isEmpty else { skipped.untitled += 1; continue }
+            }
             guard isSwitchable(window, subrole: values[0] as? String, layers: layers) else {
                 skipped.notSwitchable += 1
                 continue
@@ -120,7 +128,16 @@ enum AppWindows {
     /// The window server's view of the app's windows on every Space. Public, and needs no
     /// Screen Recording: only ids, layers and sizes are read, never names. Asking for a
     /// single window does not work for windows on other Spaces, hence the full list.
-    private static func windowServerInfo(pid: pid_t) -> [(id: CGWindowID, layer: Int, width: Double, height: Double)] {
+    private struct ServerWindow {
+        let id: CGWindowID
+        let layer: Int
+        let width: Double
+        let height: Double
+        let isOnScreen: Bool
+        let alpha: Double
+    }
+
+    private static func windowServerInfo(pid: pid_t) -> [ServerWindow] {
         guard let list = CGWindowListCopyWindowInfo([.optionAll, .excludeDesktopElements], kCGNullWindowID)
             as? [[String: Any]]
         else { return [] }
@@ -131,7 +148,14 @@ enum AppWindows {
                   let bounds = info[kCGWindowBounds as String] as? [String: Double],
                   let width = bounds["Width"], let height = bounds["Height"]
             else { return nil }
-            return (id, layer, width, height)
+            return ServerWindow(
+                id: id,
+                layer: layer,
+                width: width,
+                height: height,
+                isOnScreen: info[kCGWindowIsOnscreen as String] as? Bool ?? false,
+                alpha: info[kCGWindowAlpha as String] as? Double ?? 1
+            )
         }
     }
 
@@ -139,10 +163,16 @@ enum AppWindows {
         Dictionary(windowServerInfo(pid: pid).map { ($0.id, $0.layer) }, uniquingKeysWith: { first, _ in first })
     }
 
-    /// Ids of the app's windows that could be standard windows, on any Space.
-    private static func windowServerWindows(pid: pid_t) -> Set<CGWindowID> {
+    /// Ids of the app's windows that could be standard windows on another Space: normal
+    /// level, window sized, visible, not on screen, and on some Space. The last test is what
+    /// keeps hidden helper windows out and lets most apps skip the search entirely.
+    private static func windowServerWindows(pid: pid_t, appIsHidden: Bool) -> Set<CGWindowID> {
         Set(windowServerInfo(pid: pid)
-            .filter { $0.layer == 0 && $0.width >= minimumWindowSide && $0.height >= minimumWindowSide }
+            .filter { window in
+                window.layer == 0 && !window.isOnScreen && window.alpha > 0.01
+                    && window.width >= minimumWindowWidth && window.height >= minimumWindowHeight
+                    && (appIsHidden || PrivateWindowServer.isOnSomeSpace(window.id) != false)
+            }
             .map(\.id))
     }
 
@@ -157,16 +187,25 @@ enum AppWindows {
         )
     }
 
-    /// Makes the window main before activating the app, so that macOS switches to the
-    /// window's Space rather than to the Space of whichever window was main.
+    /// Brings the window forward on its own Space. The window server call (D26) switches
+    /// Spaces even when the app is already frontmost, which public calls cannot do; they
+    /// remain the fallback.
     static func raise(_ window: AppWindow) {
+        // Restoring is asynchronous: the window server call would run on a window still
+        // ordered out. A restored window comes back where the user is, so public calls do.
         if window.isMinimized {
             window.element.set(kAXMinimizedAttribute, kCFBooleanFalse)
         }
-        window.element.set(kAXMainAttribute, kCFBooleanTrue)
+        let focused = window.isMinimized
+            ? false
+            : window.windowID.map { PrivateWindowServer.focus(pid: window.pid, windowID: $0) } ?? false
         window.element.perform(kAXRaiseAction)
-        // Setting frontmost does not depend on the app agreeing to be activated.
-        AXElement.application(window.pid).set(kAXFrontmostAttribute, kCFBooleanTrue)
+        window.element.set(kAXMainAttribute, kCFBooleanTrue)
+        if !focused {
+            // Setting frontmost does not depend on the app agreeing to be activated.
+            AXElement.application(window.pid).set(kAXFrontmostAttribute, kCFBooleanTrue)
+        }
+        log.debug("pid \(window.pid): raise, window server focus \(focused)")
     }
 
     static func close(_ window: AppWindow) {

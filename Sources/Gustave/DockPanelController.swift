@@ -29,7 +29,6 @@ final class DockPanelController {
         self?.dockPointerChanged(event)
     }
 
-    private let dockAutoHide = DockAutoHide()
     private var hover: DockHover?
     /// True from the moment the panel opens until it starts closing, so a fade-out still on
     /// screen counts as closed.
@@ -38,6 +37,9 @@ final class DockPanelController {
     private var requestedFrame: CGRect?
     private var hoverDelay = Settings.defaultDockHoverDelay
     private var pendingShow: DispatchWorkItem?
+    /// Present only while a show is pending: anything that means the user moved on cancels it.
+    private var pendingShowMonitor: Any?
+    private var pendingShowObservers: [NSObjectProtocol] = []
     private var pendingClose: DispatchWorkItem?
     private var generation = 0
     /// Present only while the panel is visible, to close it the moment it is left behind.
@@ -65,12 +67,6 @@ final class DockPanelController {
 
     private func makeView() -> DockPanelView {
         DockPanelView(content: content, hover: highlight, actions: actions)
-    }
-
-    /// Puts the Dock's auto-hide back before Gustave quits.
-    func prepareForTermination() {
-        hide()
-        dockAutoHide.releaseNow()
     }
 
     /// Off removes the Dock observer entirely.
@@ -116,23 +112,51 @@ final class DockPanelController {
             MainActor.assumeIsolated {
                 guard let self, let hover = self.hover, hover.app.processIdentifier == newHover.app.processIdentifier
                 else { return }
-                self.pendingShow = nil
+                self.cancelShow()
                 self.loadWindows(for: hover)
             }
         }
         pendingShow = work
+        watchPendingShow()
         DispatchQueue.main.asyncAfter(deadline: .now() + hoverDelay, execute: work)
+    }
+
+    /// A click (on the icon or anywhere), an app switch or a Space change during the delay
+    /// means the user has moved on. Without this, clicking an icon before the delay ends
+    /// would open the list after the app came forward and the Dock hid.
+    private func watchPendingShow() {
+        guard pendingShowMonitor == nil else { return }
+        pendingShowMonitor = NSEvent.addGlobalMonitorForEvents(
+            matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown]
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.cancelShow() }
+        }
+        let center = NSWorkspace.shared.notificationCenter
+        for name in [NSWorkspace.didActivateApplicationNotification, NSWorkspace.activeSpaceDidChangeNotification] {
+            pendingShowObservers.append(center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { self?.cancelShow() }
+            })
+        }
     }
 
     private func cancelShow() {
         pendingShow?.cancel()
         pendingShow = nil
+        if let pendingShowMonitor {
+            NSEvent.removeMonitor(pendingShowMonitor)
+        }
+        pendingShowMonitor = nil
+        for token in pendingShowObservers {
+            NSWorkspace.shared.notificationCenter.removeObserver(token)
+        }
+        pendingShowObservers = []
     }
 
     private func loadWindows(for hover: DockHover) {
         generation += 1
         let token = generation
         let pid = hover.app.processIdentifier
+        let appIsHidden = hover.app.isHidden
         AXQueues.windows.async { [weak self] in
             let windows = AppWindows.list(pid: pid)
             DispatchQueue.main.async {
@@ -147,7 +171,7 @@ final class DockPanelController {
             // never delays the panel or a window action.
             guard let windows else { return }
             AXQueues.otherSpaces.async {
-                let others = AppWindows.otherSpaces(pid: pid, known: windows)
+                let others = AppWindows.otherSpaces(pid: pid, known: windows, appIsHidden: appIsHidden)
                 DispatchQueue.main.async {
                     MainActor.assumeIsolated {
                         guard let self, token == self.generation else { return }
@@ -194,7 +218,6 @@ final class DockPanelController {
         panel.alphaValue = 0
         setFrame(start, duration: 0)
         panel.orderFrontRegardless()
-        dockAutoHide.hold()
         NSAnimationContext.runAnimationGroup { context in
             context.duration = Self.openDuration
             context.timingFunction = CAMediaTimingFunction(name: .easeOut)
@@ -263,7 +286,6 @@ final class DockPanelController {
     private func fadeOut() {
         guard isPresented else { return }
         isPresented = false
-        dockAutoHide.release()
         NSAnimationContext.runAnimationGroup { context in
             context.duration = Self.closeDuration
             context.timingFunction = CAMediaTimingFunction(name: .easeIn)

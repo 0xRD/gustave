@@ -236,6 +236,49 @@ while the switcher is on. No polling: work happens only when focus changes.
 The other-Spaces search no longer stops an app's search on a failed read that is not a
 timeout, which could hide the windows after it, and it logs why candidates are skipped.
 
+### D25. Withdraw D22, and cancel a pending show when the user moves on
+Decided 2026-11-06 after the user's test. Turning the Dock's auto-hide off while the panel
+was open made maximized and tiled windows move up and back down, because the usable screen
+area changes with it; nothing avoids that, and DockDoor ships the same option off by
+default for that reason. The hold is removed. Only the recovery stays: a launch that finds
+the flag an earlier build wrote turns auto-hide back on, using `CoreDockSetAutoHideEnabled`
+for that single purpose. The Dock hides while the pointer is on the panel, as with DockDoor.
+
+Clicking an icon before the hover delay ended made the panel appear after the app came
+forward and the Dock hid, because the Dock reports no change when it hides that way. While a
+show is pending, and only then, a global mouse-down monitor and observers for app activation
+and Space changes cancel it. DockDoor cancels its pending preview on a Dock click too. Any app
+activation cancels it, including one the user did not cause; the panel then opens on the next
+icon hovered. An independent review of this change found the five issues fixed in D26.
+
+### D26. Space-aware search and focus on any Space, as DockDoor does
+Approved by the user on 2026-11-06 (private functions allowed when needed). Research of
+DockDoor's source found two gaps. Adds, resolved with `dlsym`, with public fallbacks:
+- `CGSMainConnectionID` and `CGSCopySpacesForWindows` (mask 7): a window that belongs to no
+  Space is ordered out, a hidden helper. Candidates for the other-Spaces search are now
+  layer 0, at least 100 by 50, alpha above 0.01, not on screen, and on some Space. Most apps
+  then have no candidate and skip the search, so it no longer needs a 100 ms cut-off, which
+  missed Safari windows with high element ids. It covers ids 0 to 999, stops on a timeout,
+  and has a 1 s backstop. The title filter applies only when Spaces cannot be read.
+- `_SLPSSetFrontProcessWithOptions` (mode 0x200, user generated) with the window id, then
+  `SLPSPostEventRecordTo` twice with the make-key event record DockDoor and Hammerspoon use
+  (0x100 bytes; 0x04 = 0xF8, 0x08 = 1 then 2, 0x20 to 0x2F = 0xFF, 0x3A = 0x10, 0x3C =
+  window id), via the deprecated public `GetProcessForPID`. This brings a window forward on
+  its own Space even when its app is already frontmost, which AXRaise and AXFrontmost cannot.
+  AXRaise and AXMain follow; AXFrontmost is the fallback when the window server call fails.
+  A minimized window takes the public path only: restoring is asynchronous, and the window
+  server call would act on a window still ordered out.
+- Windows of a hidden app (Command+H) may belong to no Space: for those the Space test is
+  skipped and the title test applies. A failed Space query counts as unknown, not as hidden.
+- The window server calls run off the main thread (Accessibility queues), where Hammerspoon
+  and yabai call them on main; no problem seen, to keep an eye on.
+Checked on device: Safari's windows on other Spaces report their Space, its hidden helper
+reports none. Not allowed under this decision: changing Spaces directly, moving windows
+between Spaces, window capture.
+
+`FocusTracker` now reads the focused window from the frontmost app on each change rather
+than trusting the notification's element, and logs window ids (no titles) at debug level.
+
 ## Verified on device
 
 - 2026-11-01, macOS 26.6: codesign refuses an untrusted self-signed identity ("no identity

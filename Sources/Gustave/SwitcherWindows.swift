@@ -59,10 +59,10 @@ enum SwitcherWindows {
 
     /// Adds the windows of `regularApps` on other Spaces (docs/DECISIONS.md, D17), in the
     /// window server's order, which runs front to back across Spaces.
-    static func addingOtherSpaces(to snapshot: Snapshot, regularApps: [pid_t]) -> Snapshot {
+    static func addingOtherSpaces(to snapshot: Snapshot, regularApps: [pid_t], hiddenApps: Set<pid_t>) -> Snapshot {
         let known = Dictionary(grouping: snapshot.windows.values, by: \.pid)
         let found = inParallel(regularApps) { pid in
-            AppWindows.otherSpaces(pid: pid, known: known[pid] ?? [])
+            AppWindows.otherSpaces(pid: pid, known: known[pid] ?? [], appIsHidden: hiddenApps.contains(pid))
         }
 
         var result = snapshot

@@ -93,9 +93,9 @@ else
     fail "private APIs linked: $linked_private"
 fi
 
-approved_private='^(_AXUIElement(CreateWithRemoteToken|GetWindow)|CoreDock(Get|Set)AutoHideEnabled)$'
-# CGS and SLS names continue with a capital letter, which keeps public CGSize out.
-named_private=$(strings -a "$binary" | grep -E '^(_AX[A-Za-z]+|_?(CGS|SLS)[A-Z][A-Za-z]*|_?CoreDock[A-Za-z]+)$' \
+approved_private='^(_AXUIElement(CreateWithRemoteToken|GetWindow)|CoreDockSetAutoHideEnabled|CGS(MainConnectionID|CopySpacesForWindows)|_SLPSSetFrontProcessWithOptions|SLPSPostEventRecordTo)$'
+# CGS, SLS and SLPS names continue with a capital letter, which keeps public CGSize out.
+named_private=$(strings -a "$binary" | grep -E '^(_AX[A-Za-z]+|_?(CGS|SLS|SLPS)[A-Z][A-Za-z]*|_?CoreDock[A-Za-z]+)$' \
     | grep -vE "$approved_private")
 if [[ -z "$named_private" ]]; then
     pass "only approved private APIs looked up"

@@ -102,9 +102,9 @@ final class WindowSwitcher: ObservableObject {
         installSessionWatchers()
 
         let own = ProcessInfo.processInfo.processIdentifier
-        let regular = NSWorkspace.shared.runningApplications
-            .filter { $0.activationPolicy == .regular }
-            .map(\.processIdentifier)
+        let regularApps = NSWorkspace.shared.runningApplications.filter { $0.activationPolicy == .regular }
+        let regular = regularApps.map(\.processIdentifier)
+        let hidden = Set(regularApps.filter(\.isHidden).map(\.processIdentifier))
         let recent = focus.recent.keys
         AXQueues.windows.async { [weak self] in
             let started = Date()
@@ -121,7 +121,7 @@ final class WindowSwitcher: ObservableObject {
             // Other Spaces arrive second, on their own queue, so a quick press never waits
             // for them and raising the chosen window is not queued behind them.
             AXQueues.otherSpaces.async {
-                let full = SwitcherWindows.addingOtherSpaces(to: current, regularApps: regular)
+                let full = SwitcherWindows.addingOtherSpaces(to: current, regularApps: regular, hiddenApps: hidden)
                 Self.log.debug("other Spaces: \(full.windows.count - current.windows.count) windows in \(Self.elapsed(since: started)) ms")
                 guard full.windows.count > current.windows.count else { return }
                 let all = full.ordered
