@@ -40,12 +40,13 @@ enum AppWindows {
         if error == .cannotComplete { return nil }
         guard error == .success, let windows = value as? [AXUIElement] else { return [] }
 
+        let layers = windowLayers(pid: pid)
         var result: [AppWindow] = []
         var skipped: [String] = []
         for raw in windows.prefix(maxWindows) {
             let window = AXElement(raw)
             guard let values = window.values(attributes) else { return nil }
-            guard isSwitchable(window, subrole: values[0] as? String) else {
+            guard isSwitchable(window, subrole: values[0] as? String, layers: layers) else {
                 skipped.append(values[0] as? String ?? "none")
                 continue
             }
@@ -61,6 +62,7 @@ enum AppWindows {
     static func otherSpaces(pid: pid_t, known: [AppWindow]) -> [AppWindow] {
         guard PrivateAccessibility.isAvailable else { return [] }
         let knownIDs = Set(known.compactMap(\.windowID))
+        let layers = windowLayers(pid: pid)
         let missing = windowServerWindows(pid: pid).subtracting(knownIDs)
         guard !missing.isEmpty else { return [] }
 
@@ -75,7 +77,7 @@ enum AppWindows {
             let window = AXElement(raw)
             guard let values = window.values(attributes) else { break }
             remaining.remove(windowID)
-            guard isSwitchable(window, subrole: values[0] as? String) else { continue }
+            guard isSwitchable(window, subrole: values[0] as? String, layers: layers) else { continue }
             found.append(makeWindow(window, pid: pid, id: known.count + found.count, values: values))
         }
         log.debug("pid \(pid): \(missing.count) windows not on this Space, \(found.count) found")
@@ -85,41 +87,45 @@ enum AppWindows {
     /// Standard windows, and dialogs at the normal window level: on macOS 26 the main
     /// windows of Mail, Messages and Photos report the dialog subrole. Floating dialogs,
     /// such as reminders, stay out. The rule DockDoor uses.
-    private static func isSwitchable(_ window: AXElement, subrole: String?) -> Bool {
+    private static func isSwitchable(_ window: AXElement, subrole: String?, layers: [CGWindowID: Int]) -> Bool {
         switch subrole {
         case kAXStandardWindowSubrole:
             return true
         case kAXDialogSubrole:
-            guard let id = PrivateAccessibility.windowID(of: window.raw) else { return true }
-            return windowLayer(id) == 0
+            guard let id = PrivateAccessibility.windowID(of: window.raw), let layer = layers[id] else { return true }
+            return layer == 0
         default:
             return false
         }
     }
 
-    private static func windowLayer(_ id: CGWindowID) -> Int? {
-        let list = CGWindowListCopyWindowInfo(.optionIncludingWindow, id) as? [[String: Any]]
-        return list?.first?[kCGWindowLayer as String] as? Int
-    }
-
-    /// Ids of the app's windows that could be standard windows, on any Space. Public, and
-    /// needs no Screen Recording: only ids, layers and sizes are read, never names.
-    private static func windowServerWindows(pid: pid_t) -> Set<CGWindowID> {
+    /// The window server's view of the app's windows on every Space. Public, and needs no
+    /// Screen Recording: only ids, layers and sizes are read, never names. Asking for a
+    /// single window does not work for windows on other Spaces, hence the full list.
+    private static func windowServerInfo(pid: pid_t) -> [(id: CGWindowID, layer: Int, width: Double, height: Double)] {
         guard let list = CGWindowListCopyWindowInfo([.optionAll, .excludeDesktopElements], kCGNullWindowID)
             as? [[String: Any]]
         else { return [] }
-        var ids = Set<CGWindowID>()
-        for info in list {
+        return list.compactMap { info in
             guard info[kCGWindowOwnerPID as String] as? pid_t == pid,
-                  info[kCGWindowLayer as String] as? Int == 0,
+                  let layer = info[kCGWindowLayer as String] as? Int,
                   let id = info[kCGWindowNumber as String] as? CGWindowID,
                   let bounds = info[kCGWindowBounds as String] as? [String: Double],
-                  let width = bounds["Width"], let height = bounds["Height"],
-                  width >= minimumWindowSide, height >= minimumWindowSide
-            else { continue }
-            ids.insert(id)
+                  let width = bounds["Width"], let height = bounds["Height"]
+            else { return nil }
+            return (id, layer, width, height)
         }
-        return ids
+    }
+
+    private static func windowLayers(pid: pid_t) -> [CGWindowID: Int] {
+        Dictionary(windowServerInfo(pid: pid).map { ($0.id, $0.layer) }, uniquingKeysWith: { first, _ in first })
+    }
+
+    /// Ids of the app's windows that could be standard windows, on any Space.
+    private static func windowServerWindows(pid: pid_t) -> Set<CGWindowID> {
+        Set(windowServerInfo(pid: pid)
+            .filter { $0.layer == 0 && $0.width >= minimumWindowSide && $0.height >= minimumWindowSide }
+            .map(\.id))
     }
 
     private static func makeWindow(_ window: AXElement, pid: pid_t, id: Int, values: [CFTypeRef?]) -> AppWindow {

@@ -183,6 +183,10 @@ with public API: the Dock hides as it does for DockDoor.
   DockDoor does). Safari reported 0 windows while its windows were on another Space.
   Pressing Safari's minimize button through Accessibility failed. The log now records the
   AXError of each step, and the panel re-reads the windows after an action.
+- 2026-11-06, macOS 26.6: `CGWindowListCopyWindowInfo(.optionIncludingWindow, id)` returns
+  nothing for windows on other Spaces, so layers come from one `.optionAll` list per
+  listing. With that build, the other-Spaces search found Safari and Mail windows the
+  public list missed (log: "5 windows not on this Space, 2 found").
 
 ## Open questions
 
