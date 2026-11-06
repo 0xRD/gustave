@@ -163,7 +163,10 @@ final class DockPanelController {
         let appIsHidden = hover.app.isHidden
         AXQueues.windows.async { [weak self] in
             guard current.matches(token) else { return }
-            let windows = AppWindows.list(pid: pid)
+            // Windows seen before on other Spaces come with the first list (D27).
+            let windows = AppWindows.list(pid: pid).map { listed in
+                listed + AppWindows.remembered(pid: pid, known: listed, appIsHidden: appIsHidden)
+            }
             DispatchQueue.main.async {
                 MainActor.assumeIsolated {
                     guard let self, token == self.generation else { return }
