@@ -163,6 +163,24 @@ drops hidden helper windows such as Electron's. Opening fades in over 0.16 s whi
 0.12 s. Only the window is animated, so the window server composites it and nothing is laid
 out per frame. With Reduce Motion on, the slide is dropped.
 
+### D20. Option+Tab: order from the window server, Carbon hot keys
+Decided 2026-11-06, approach A of SPEC F2. The order is read once when the shortcut is
+pressed: `CGWindowListCopyWindowInfo` with on-screen windows only lists them front to back,
+which is what Windows' own list follows. Only ids, owners and layers are read, so it needs no
+Screen Recording. Each window is matched to its Accessibility element by window id through
+`_AXUIElementGetWindow`, already approved in D17. Minimized windows of regular apps follow.
+Ordering and selection are pure (`SwitcherOrder`, `SwitcherSelection`) and unit tested.
+Rejected: B, an MRU list kept by per-app `AXObserver`s, which costs observers in every app
+all day for an order the window server already keeps; C, which adds B's cost to A.
+Activating a window raises it, which moves it to the front for the next press.
+
+The trigger is a Carbon `RegisterEventHotKey` for Option+Tab and Option+Shift+Tab, which
+needs no permission. Option's release is watched by `flagsChanged` monitors installed only
+while a switcher session is open; Apple documents key monitors as needing Accessibility. A
+quick press is also caught when Tab comes up with Option already released. Option+Escape is
+a hot key registered only during a session. The list appears after 0.12 s, so a quick press
+switches without flashing it. To verify on device: no Input Monitoring or other prompt.
+
 ## Verified on device
 
 - 2026-11-01, macOS 26.6: codesign refuses an untrusted self-signed identity ("no identity

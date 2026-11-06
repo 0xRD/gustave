@@ -5,6 +5,7 @@ struct SettingsView: View {
     @ObservedObject var store: SettingsStore
     @ObservedObject var permission: AccessibilityPermission
     @ObservedObject var scrollInverter: ScrollInverter
+    @ObservedObject var switcher: WindowSwitcher
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -39,6 +40,12 @@ struct SettingsView: View {
                     }
                     .pickerStyle(.segmented)
                     .padding(.leading, 20)
+                }
+                Toggle("Option+Tab window switcher", isOn: $store.settings.switcherEnabled)
+                if switcher.isUnavailable {
+                    Text("Option+Tab is taken by another app.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
                 Toggle("Invert mouse scrolling", isOn: $store.settings.invertMouseScroll)
                 Toggle("Invert trackpad scrolling", isOn: $store.settings.invertTrackpadScroll)

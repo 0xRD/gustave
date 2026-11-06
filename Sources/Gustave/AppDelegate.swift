@@ -10,11 +10,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let store = SettingsStore()
     private let scrollInverter = ScrollInverter()
     private let dockPanel = DockPanelController()
+    private let switcher = WindowSwitcher()
     private var subscription: AnyCancellable?
     private lazy var settingsWindow = SettingsWindowController(
         store: store,
         permission: permission,
-        scrollInverter: scrollInverter
+        scrollInverter: scrollInverter,
+        switcher: switcher
     )
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -24,13 +26,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         subscription = store.$settings
             .combineLatest(permission.$isGranted)
-            .sink { [scrollInverter, dockPanel] settings, isGranted in
+            .sink { [scrollInverter, dockPanel, switcher] settings, isGranted in
                 scrollInverter.update(settings: settings, isPermissionGranted: isGranted)
                 dockPanel.setEnabled(
                     settings.dockListEnabled && isGranted,
                     hoverDelay: settings.dockHoverDelay,
                     glass: settings.panelGlass
                 )
+                switcher.setEnabled(settings.switcherEnabled && isGranted, glass: settings.panelGlass)
             }
 
         // Silent at login once everything is in place.

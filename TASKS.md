@@ -76,20 +76,21 @@ Status: [ ] todo, [~] in progress, [x] done.
     app, a window with hostile title text, Stage Manager on and off.
   - Done on device (2026-11-06): bottom Dock, auto-hide, windows on other Spaces (D17),
     glass and animation (D19), closing rules (D18, `DockPanelRule`), focus never taken.
-  - Open: minimize and close from a row (no log line seen yet), left and right Docks,
+  - Done: minimize and close from a row (user, 2026-11-06).
+  - Open: left and right Docks,
     two displays, a frozen app, a hostile title, Stage Manager.
 
 ## M4. Option+Tab switcher (F2)
 
-- [ ] M4.1 MRU window ordering across apps (see approaches A, B, C in `SPEC.md`, F2).
+- [~] M4.1 MRU window ordering across apps (see approaches A, B, C in `SPEC.md`, F2).
   Prototype on device, pick one, record the result and the rejected options in
   `docs/DECISIONS.md`. Pure ordering logic (move to front, minimized last, drop closed
   windows) lives in Core and is unit tested.
   - Accept (manual): with two windows of the same app as the two most recent, they are
     adjacent in the list. No polling, no Screen Recording prompt, idle cost zero.
-- [ ] M4.2 Trigger without Input Monitoring if possible. Document the permission
+- [~] M4.2 Trigger without Input Monitoring if possible. Document the permission
   actually required to detect the Option key release.
-- [ ] M4.3 Switcher UI reusing the F1 row design, keyboard navigation (Tab, Shift+Tab,
+- [~] M4.3 Switcher UI reusing the F1 row design, keyboard navigation (Tab, Shift+Tab,
   Escape), quick press toggles the two most recent windows, list frozen while open,
   cleanup on dismiss.
   - Accept (manual): quick press toggles two windows, including two of the same app.
