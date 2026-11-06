@@ -13,7 +13,7 @@ final class WindowSwitcher: ObservableObject {
     /// True when the feature is on but the system refused the shortcut.
     @Published private(set) var isUnavailable = false
 
-    private static let log = Logger(subsystem: "io.github.0xrd.gustave", category: "switcher")
+    nonisolated private static let log = Logger(subsystem: "io.github.0xrd.gustave", category: "switcher")
 
     /// Long enough that a quick press never flashes the list.
     private static let showDelay: TimeInterval = 0.12
@@ -23,6 +23,8 @@ final class WindowSwitcher: ObservableObject {
         var steps: Int
         var windows: [AppWindow]?
         var isCommitted = false
+        /// The show delay has passed: show the list as soon as it is ready.
+        var wantsPanel = false
     }
 
     private let hotKeys = HotKeyCenter()
@@ -103,7 +105,10 @@ final class WindowSwitcher: ObservableObject {
             .filter { $0.activationPolicy == .regular }
             .map(\.processIdentifier)
         AXQueues.windows.async { [weak self] in
+            let started = Date()
             let windows = SwitcherWindows.collect(regularApps: regular, excluding: own)
+            let milliseconds = Int(Date().timeIntervalSince(started) * 1000)
+            Self.log.debug("list: \(windows.count) windows from \(regular.count) apps in \(milliseconds) ms")
             DispatchQueue.main.async {
                 MainActor.assumeIsolated {
                     guard let self, token == self.generation else { return }
@@ -116,6 +121,7 @@ final class WindowSwitcher: ObservableObject {
             MainActor.assumeIsolated {
                 guard let self, token == self.generation else { return }
                 self.pendingShow = nil
+                self.session?.wantsPanel = true
                 self.showPanel()
             }
         }
@@ -127,8 +133,12 @@ final class WindowSwitcher: ObservableObject {
         session?.windows = windows
         if session?.isCommitted == true {
             commit()
-        } else {
-            render()
+            return
+        }
+        render()
+        // The list took longer than the show delay: show it now.
+        if session?.wantsPanel == true, !panel.isVisible {
+            showPanel()
         }
     }
 
@@ -225,6 +235,7 @@ final class WindowSwitcher: ObservableObject {
         }
     }
 
+    /// Waits for the list: it shows once both the delay has passed and the list is built.
     private func showPanel() {
         guard session?.windows?.isEmpty == false else { return }
         layOut()

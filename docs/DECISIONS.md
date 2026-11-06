@@ -245,6 +245,13 @@ switches without flashing it. To verify on device: no Input Monitoring or other 
   Another Dock item (an app that is not running, a folder, the Trash) now closes the panel
   at once (`DockPanelRule`). The grace period applies only when nothing is selected.
 - 2026-11-06: the user confirmed the panel now renders whole, with its title and corners.
+- 2026-11-06, macOS 26.6, user test of M4: switching works. The list did not show: it was
+  shown only if the window list was ready at the 0.12 s mark, which collecting every app's
+  windows can exceed. It now shows once both are ready, and the build time is logged.
+- 2026-11-06, macOS 26.6: over a white background the glass turns light, but the views
+  inside keep the dark appearance (checked with a glass panel over a white window), so white
+  text becomes unreadable. The appearance does not follow the glass; a fix is being chosen
+  with the user from live samples.
 
 ## Open questions
 
