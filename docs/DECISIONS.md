@@ -303,8 +303,9 @@ behind a lock in `SeenWindowElements`, as the Accessibility queues and main all 
 A remembered element is used only for a window the window server still lists for that pid
 as a candidate on another Space (the D26 test), and only if it answers a read with the
 short timeout; one that fails is forgotten. Windows the window server no longer has are
-dropped whenever an app's windows are listed, every app's at once in the switcher's second
-step, and an app's windows go when it quits. The memory is emptied when both the Dock list
+dropped whenever their app's remembered windows are read, which every Option+Tab does for
+every app, and an app's windows go when it quits (observed only while a window feature is
+on). The memory is emptied when both the Dock list
 and the switcher are off, or Accessibility is revoked.
 - The switcher's first step now includes the remembered windows on other Spaces: one read
   per window, no search, so the first step stays fast and a quick press reaches the window
@@ -320,6 +321,30 @@ Not done, to keep steady-state cost at zero: refreshing the memory on every Spac
 or listing every app at launch. A window never focused or listed since Gustave started,
 whose element id is above 999, is still missing until the user visits its Space and
 focuses it, hovers its app in the Dock, or presses Option+Tab there. No new private API.
+
+Fixed with it, from a review of the switcher by three test agents:
+- A hidden app's windows (Command+H) are returned by `AXWindows` but not on screen, so they
+  had no place in the order and were dropped. They now follow other Spaces, before the
+  minimized windows (`offScreen` in `SwitcherOrder`). Windows without a window id, as when
+  `_AXUIElementGetWindow` is missing, are listed there too instead of the switcher being
+  empty.
+- `AppWindows.list` dropped a whole app when one window failed to read (one closing while
+  listed); only a timeout does that now. Subroles are logged only when they are system
+  values, as they are app-supplied text.
+- Repeated quick presses re-picked the same window: the history learnt of the switch only
+  after the raise, the app's answer and a hop to main. The chosen window now leads the
+  history at once.
+- With no focused window (the desktop, or Gustave's settings), the first press skipped the
+  most recent window. It now selects it (`SwitcherSelection.steps`).
+- Each press queued a full build and a search that ran to the end even after the session
+  was over. A session's work now stops at its end, checked before each app and during the
+  search, so a quick press no longer runs the search at all.
+- Each press read the window server's full list about three times per app. It is now read
+  once per session for every app and both steps, plus the on-screen list.
+- A session whose Option release went unseen (secure input) stayed open with its list up.
+  The show delay and the list's arrival now check Option and switch when it is already up.
+- `FocusTracker` removed its notification from the app being left on the main thread; that
+  call into a possibly frozen app now runs on the Accessibility queue.
 
 ## Verified on device
 

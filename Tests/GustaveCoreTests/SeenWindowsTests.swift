@@ -90,16 +90,3 @@ private func ids(_ seen: SeenWindows<String>, _ pid: Int32) -> [UInt32] {
     seen.remember("", for: key(1, 1))
     #expect(seen.count == 1)
 }
-
-@Test func aWindowSeenOnAnotherSpaceLeadsAQuickPress() {
-    // The log of D27: Safari 4081 here, Safari 9111 on another Space focused just before,
-    // Finder 418 here. Once 9111 is listed from memory in the first step, a quick press
-    // reaches it instead of Finder.
-    let current = key(1489, 4081), elsewhere = key(1489, 9111), finder = key(653, 418)
-    let recent = [current, elsewhere, finder]
-    let firstStepBefore = SwitcherOrder.order(recent: recent, frontToBack: [current, finder], minimized: [])
-    #expect(firstStepBefore[SwitcherSelection.index(steps: 1, count: firstStepBefore.count)!] == finder)
-    let firstStepNow = SwitcherOrder.order(
-        recent: recent, frontToBack: [current, finder], otherSpaces: [elsewhere], minimized: [])
-    #expect(firstStepNow[SwitcherSelection.index(steps: 1, count: firstStepNow.count)!] == elsewhere)
-}

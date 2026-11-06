@@ -12,6 +12,9 @@ final class FocusTracker {
     nonisolated private static let log = Logger(subsystem: "io.github.0xrd.gustave", category: "focus")
 
     private(set) var recent = RecentWindows()
+    /// The window that has focus now, as last read. Nil when the frontmost app has none,
+    /// as when the desktop is clicked.
+    private(set) var focusedWindow: WindowKey?
 
     private var workspaceObservers: [NSObjectProtocol] = []
     private var observer: AXObserver?
@@ -53,10 +56,24 @@ final class FocusTracker {
         workspaceObservers = []
         stopObservingApp()
         recent = RecentWindows()
+        focusedWindow = nil
+    }
+
+    /// The switcher is raising this window. Recorded at once: the focus notification
+    /// arrives only after the raise, the app's answer and a hop to main, and a second quick
+    /// press in that time would otherwise pick the same window again.
+    func touch(_ key: WindowKey) {
+        recent.touch(key)
+        focusedWindow = key
     }
 
     private func appActivated(_ pid: pid_t) {
-        guard pid != ProcessInfo.processInfo.processIdentifier else { return }
+        guard pid != ProcessInfo.processInfo.processIdentifier else {
+            // Gustave's own settings window is never listed: the window used before it is
+            // the one to switch to.
+            focusedWindow = nil
+            return
+        }
         observe(pid)
         recordFocusedWindow(of: pid, reason: "app activated")
     }
@@ -70,6 +87,9 @@ final class FocusTracker {
                   let key = Self.key(of: window.raw, pid: pid)
             else {
                 Self.log.debug("\(reason): pid \(pid), no focused window id")
+                DispatchQueue.main.async {
+                    MainActor.assumeIsolated { self?.focusedWindow = nil }
+                }
                 return
             }
             Self.log.debug("\(reason): pid \(pid), window \(key.windowID)")
@@ -77,7 +97,7 @@ final class FocusTracker {
             // windows on other Spaces may never reach it (D27).
             SeenWindowElements.remember(window, pid: pid, windowID: key.windowID)
             DispatchQueue.main.async {
-                MainActor.assumeIsolated { self?.recent.touch(key) }
+                MainActor.assumeIsolated { self?.touch(key) }
             }
         }
     }
@@ -113,8 +133,14 @@ final class FocusTracker {
         generation += 1
         if let observer {
             CFRunLoopRemoveSource(CFRunLoopGetMain(), AXObserverGetRunLoopSource(observer), .commonModes)
+            // A call into the app being left, which may be frozen: never on main, where it
+            // could block the scroll tap too.
             if let observedApp {
-                AXObserverRemoveNotification(observer, observedApp.raw, kAXFocusedWindowChangedNotification as CFString)
+                let reference = AXObserverReference(observer: observer)
+                AXQueues.windows.async {
+                    AXObserverRemoveNotification(
+                        reference.observer, observedApp.raw, kAXFocusedWindowChangedNotification as CFString)
+                }
             }
         }
         observer = nil

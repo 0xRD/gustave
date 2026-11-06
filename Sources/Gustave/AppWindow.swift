@@ -36,21 +36,29 @@ enum AppWindows {
     ]
 
     /// The windows on the current Space, as public Accessibility reports them. Nil when the
-    /// app does not answer in time, so one frozen app costs one timeout.
-    static func list(pid: pid_t) -> [AppWindow]? {
+    /// app does not answer in time, so one frozen app costs one timeout. `server` is the
+    /// window server's list when the caller already read it.
+    static func list(pid: pid_t, server: WindowServerList? = nil) -> [AppWindow]? {
         let app = AXElement.application(pid)
         let (error, value) = app.copy(kAXWindowsAttribute)
         if error == .cannotComplete { return nil }
         guard error == .success, let windows = value as? [AXUIElement] else { return [] }
 
-        let layers = windowLayers(pid: pid)
+        let layers = layers((server ?? .current()).windows(of: pid))
         var result: [AppWindow] = []
         var skipped: [String] = []
         for raw in windows.prefix(maxWindows) {
             let window = AXElement(raw)
-            guard let values = window.values(attributes) else { return nil }
+            let read = window.readValues(attributes)
+            // Only a timeout means the app is not answering. Any other failure is this one
+            // window, such as one closing while it is read.
+            if read.error == .cannotComplete { return nil }
+            guard let values = read.values else {
+                skipped.append("unreadable")
+                continue
+            }
             guard isSwitchable(window, subrole: values[0] as? String, layers: layers) else {
-                skipped.append(values[0] as? String ?? "none")
+                skipped.append(logName(ofSubrole: values[0] as? String))
                 continue
             }
             let listed = makeWindow(window, pid: pid, id: result.count, values: values)
@@ -60,19 +68,33 @@ enum AppWindows {
             }
             result.append(listed)
         }
-        // Counts and subroles only: titles stay out of the log.
+        // Counts and system subroles only: titles and other app-supplied text stay out of
+        // the log.
         log.debug("pid \(pid): \(windows.count) AX windows, \(result.count) standard, \(result.filter(\.isMinimized).count) minimized, skipped \(skipped, privacy: .public)")
         return result
+    }
+
+    private static let loggedSubroles: Set<String> = [
+        kAXStandardWindowSubrole, kAXDialogSubrole, kAXSystemDialogSubrole,
+        kAXFloatingWindowSubrole, kAXSystemFloatingWindowSubrole, kAXUnknownSubrole,
+    ]
+
+    /// The subrole is app-supplied text: only the system's own values are logged.
+    private static func logName(ofSubrole subrole: String?) -> String {
+        guard let subrole else { return "none" }
+        return loggedSubroles.contains(subrole) ? subrole : "other"
     }
 
     /// Windows on other Spaces that Gustave has seen before (D27), without any search: one
     /// read per window, so the switcher's first step can include them and a quick press
     /// reaches a window last focused on another Space.
-    static func remembered(pid: pid_t, known: [AppWindow], appIsHidden: Bool) -> [AppWindow] {
+    static func remembered(
+        pid: pid_t, known: [AppWindow], appIsHidden: Bool, server: WindowServerList? = nil
+    ) -> [AppWindow] {
         let knownIDs = Set(known.compactMap(\.windowID))
         guard SeenWindowElements.windows(of: pid).contains(where: { !knownIDs.contains($0.key.windowID) })
         else { return [] }
-        let server = windowServerInfo(pid: pid)
+        let server = (server ?? .current()).windows(of: pid)
         let missing = candidates(server, appIsHidden: appIsHidden).subtracting(knownIDs)
         let memory = fromMemory(
             pid: pid, missing: missing, server: server, firstID: known.count, appIsHidden: appIsHidden)
@@ -84,12 +106,19 @@ enum AppWindows {
     /// the public window list shows nothing that `known` does not already cover. Windows
     /// seen before come from memory (D27), and only the others are searched for.
     /// `appIsHidden`: the app was hidden (Command+H), so its windows may belong to no Space
-    /// while still being real windows.
-    static func otherSpaces(pid: pid_t, known: [AppWindow], appIsHidden: Bool) -> [AppWindow] {
+    /// while still being real windows. `shouldStop` ends the search early, once its result
+    /// is no longer wanted.
+    static func otherSpaces(
+        pid: pid_t,
+        known: [AppWindow],
+        appIsHidden: Bool,
+        server: WindowServerList? = nil,
+        shouldStop: () -> Bool = { false }
+    ) -> [AppWindow] {
         guard PrivateAccessibility.isAvailable else { return [] }
         let started = Date()
         let knownIDs = Set(known.compactMap(\.windowID))
-        let server = windowServerInfo(pid: pid)
+        let server = (server ?? .current()).windows(of: pid)
         let layers = layers(server)
         let missing = candidates(server, appIsHidden: appIsHidden).subtracting(knownIDs)
         guard !missing.isEmpty else { return [] }
@@ -105,6 +134,7 @@ enum AppWindows {
         while !remaining.isEmpty, !memory.timedOut {
             guard elementID < maxElementID else { stop = "id limit"; break }
             guard Date() < deadline else { stop = "time budget"; break }
+            guard !shouldStop() else { stop = "cancelled"; break }
             defer { elementID += 1 }
             // Wrapped first, so even the window id lookup has the short timeout: a frozen app
             // costs the time budget, not the system's default timeout per call.
@@ -143,7 +173,7 @@ enum AppWindows {
     private static func fromMemory(
         pid: pid_t,
         missing: Set<CGWindowID>,
-        server: [ServerWindow],
+        server: [WindowServerList.Window],
         firstID: Int,
         appIsHidden: Bool
     ) -> (found: [AppWindow], remaining: Set<CGWindowID>, timedOut: Bool) {
@@ -214,52 +244,14 @@ enum AppWindows {
         }
     }
 
-    /// The window server's view of the app's windows on every Space. Public, and needs no
-    /// Screen Recording: only ids, layers and sizes are read, never names. Asking for a
-    /// single window does not work for windows on other Spaces, hence the full list.
-    private struct ServerWindow {
-        let id: CGWindowID
-        let layer: Int
-        let width: Double
-        let height: Double
-        let isOnScreen: Bool
-        let alpha: Double
-    }
-
-    private static func windowServerInfo(pid: pid_t) -> [ServerWindow] {
-        guard let list = CGWindowListCopyWindowInfo([.optionAll, .excludeDesktopElements], kCGNullWindowID)
-            as? [[String: Any]]
-        else { return [] }
-        return list.compactMap { info in
-            guard info[kCGWindowOwnerPID as String] as? pid_t == pid,
-                  let layer = info[kCGWindowLayer as String] as? Int,
-                  let id = info[kCGWindowNumber as String] as? CGWindowID,
-                  let bounds = info[kCGWindowBounds as String] as? [String: Double],
-                  let width = bounds["Width"], let height = bounds["Height"]
-            else { return nil }
-            return ServerWindow(
-                id: id,
-                layer: layer,
-                width: width,
-                height: height,
-                isOnScreen: info[kCGWindowIsOnscreen as String] as? Bool ?? false,
-                alpha: info[kCGWindowAlpha as String] as? Double ?? 1
-            )
-        }
-    }
-
-    private static func windowLayers(pid: pid_t) -> [CGWindowID: Int] {
-        layers(windowServerInfo(pid: pid))
-    }
-
-    private static func layers(_ server: [ServerWindow]) -> [CGWindowID: Int] {
+    private static func layers(_ server: [WindowServerList.Window]) -> [CGWindowID: Int] {
         Dictionary(server.map { ($0.id, $0.layer) }, uniquingKeysWith: { first, _ in first })
     }
 
     /// Ids of the app's windows that could be standard windows on another Space: normal
     /// level, window sized, visible, not on screen, and on some Space. The last test is what
     /// keeps hidden helper windows out and lets most apps skip the search entirely.
-    private static func candidates(_ server: [ServerWindow], appIsHidden: Bool) -> Set<CGWindowID> {
+    private static func candidates(_ server: [WindowServerList.Window], appIsHidden: Bool) -> Set<CGWindowID> {
         Set(server
             .filter { window in
                 window.layer == 0 && !window.isOnScreen && window.alpha > 0.01
