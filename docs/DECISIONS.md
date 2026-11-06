@@ -314,6 +314,14 @@ Not done yet: moving the scroll tap off the main run loop (a main-thread stall d
 scrolling); confirming on device that "Option+Tab is taken" is ever reported; removing the
 D25 recovery after a release.
 
+### D30. Dock icon while the settings window is open
+Decided 2026-11-06 at the user's request ("can Gustave also get his app icon when opened in the
+Dock"). The bundle already carries the icon at every size; an accessory app simply never
+shows in the Dock. Gustave now switches to the regular activation policy while its settings
+window is open (Dock icon, app menu with Close Window, Hide and Quit) and back to accessory
+when the window closes. LSUIElement stays true, so it never shows at login or in the
+background. Supersedes the "no Dock icon" line of D6 and SPEC F4 for that window only.
+
 ## Verified on device
 
 - 2026-11-01, macOS 26.6: codesign refuses an untrusted self-signed identity ("no identity

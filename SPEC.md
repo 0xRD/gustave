@@ -112,7 +112,9 @@ Acceptance:
 
 ### F4. Settings window
 
-Small window, no menu bar item, no Dock icon (accessory app). Opened on first launch,
+Small window, no menu bar item. No Dock icon while running in the background (accessory
+app); while the settings window is open, Gustave shows in the Dock with its icon and has its
+app menu, and goes back to the background when the window closes. Opened on first launch,
 whenever Accessibility is missing, and when the app is opened again from Finder or
 Spotlight. Contents: one toggle per feature, launch at login, Accessibility status with
 a button to request or open System Settings, Quit button.
