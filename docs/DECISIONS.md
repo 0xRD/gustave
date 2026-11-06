@@ -220,6 +220,22 @@ from other Spaces follow the current Space's in the window server's global order
 the minimized ones. When they join an open list, the selection stays on its window
 (`SwitcherOrder.index(keeping:in:)`). The Dock list's search moved to the same queue.
 
+### D24. Option+Tab follows focus history, like Command+Tab
+Decided 2026-11-06, after the user found Option+Tab and Command+Tab disagreeing: with Claude
+and Safari on different Spaces, Command+Tab toggled them and Option+Tab did not, because
+the window server's stacking order is per Space. This revisits D20's rejection of approach
+B in a cheaper form: Gustave records which window gains focus (`FocusTracker`), from
+`NSWorkspace.didActivateApplicationNotification` and one `AXObserver` for
+`kAXFocusedWindowChangedNotification` on the frontmost app only, moved on each activation.
+Windows are keyed by window id through `_AXUIElementGetWindow` (D17). The history is pure
+(`RecentWindows`, 256 entries, in memory, cleared per app on quit) and leads the order
+(`SwitcherOrder`), across Spaces; windows never focused while Gustave ran follow in window
+server order, and minimized windows stay last. Started from the on-screen order, and only
+while the switcher is on. No polling: work happens only when focus changes.
+
+The other-Spaces search no longer stops an app's search on a failed read that is not a
+timeout, which could hide the windows after it, and it logs why candidates are skipped.
+
 ## Verified on device
 
 - 2026-11-01, macOS 26.6: codesign refuses an untrusted self-signed identity ("no identity

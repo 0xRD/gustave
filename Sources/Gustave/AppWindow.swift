@@ -69,23 +69,36 @@ enum AppWindows {
         let deadline = Date().addingTimeInterval(otherSpacesBudget)
         var found: [AppWindow] = []
         var remaining = missing
-        for elementID in 0..<maxElementID where !remaining.isEmpty && Date() < deadline {
+        var skipped = (unreadable: 0, untitled: 0, notSwitchable: 0)
+        var stop = "all matched"
+        var elementID: UInt64 = 0
+        while !remaining.isEmpty {
+            guard elementID < maxElementID else { stop = "id limit"; break }
+            guard Date() < deadline else { stop = "time budget"; break }
+            defer { elementID += 1 }
             guard let raw = PrivateAccessibility.element(pid: pid, elementID: elementID),
                   let windowID = PrivateAccessibility.windowID(of: raw),
                   remaining.contains(windowID)
             else { continue }
             let window = AXElement(raw)
-            guard let values = window.values(attributes) else { break }
+            let read = window.readValues(attributes)
+            // Only a timeout means the app is not answering. Any other failure is this one
+            // element, and the rest of the app's windows are still worth looking for.
+            if read.error == .cannotComplete { stop = "timeout"; break }
             remaining.remove(windowID)
+            guard let values = read.values else { skipped.unreadable += 1; continue }
             // Hidden helper windows, such as an Electron app's background window, have no
             // title. Windows on the current Space are not filtered this way: public
             // Accessibility already leaves hidden windows out.
             let title = (values[1] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !title.isEmpty, isSwitchable(window, subrole: values[0] as? String, layers: layers)
-            else { continue }
+            guard !title.isEmpty else { skipped.untitled += 1; continue }
+            guard isSwitchable(window, subrole: values[0] as? String, layers: layers) else {
+                skipped.notSwitchable += 1
+                continue
+            }
             found.append(makeWindow(window, pid: pid, id: known.count + found.count, values: values))
         }
-        log.debug("pid \(pid): \(missing.count) windows not on this Space, \(found.count) found")
+        log.debug("pid \(pid): \(missing.count) windows not on this Space, \(found.count) found, skipped \(skipped.unreadable) unreadable \(skipped.untitled) untitled \(skipped.notSwitchable) other, \(remaining.count) not reached, stopped: \(stop, privacy: .public), last id \(elementID)")
         return found
     }
 

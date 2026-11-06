@@ -7,6 +7,7 @@ import GustaveCore
 enum SwitcherWindows {
     /// The windows found so far, by key, with what is needed to order them.
     struct Snapshot: @unchecked Sendable {
+        var recent: [WindowKey] = []
         var windows: [WindowKey: AppWindow] = [:]
         var frontToBack: [WindowKey] = []
         var otherSpaces: [WindowKey] = []
@@ -14,7 +15,8 @@ enum SwitcherWindows {
 
         /// Most recently used first, numbered from zero.
         var ordered: [AppWindow] {
-            let order = SwitcherOrder.order(frontToBack: frontToBack, otherSpaces: otherSpaces, minimized: minimized)
+            let order = SwitcherOrder.order(
+                recent: recent, frontToBack: frontToBack, otherSpaces: otherSpaces, minimized: minimized)
             return order.enumerated().compactMap { index, key in
                 windows[key].map { window in
                     AppWindow(
@@ -33,7 +35,7 @@ enum SwitcherWindows {
     /// Every switchable window on the current Space, then the minimized windows of
     /// `regularApps`. The on-screen order comes from the window server, which lists windows
     /// front to back. Only ids and layers are read, never names.
-    static func currentSpace(regularApps: [pid_t], excluding ownPID: pid_t) -> Snapshot {
+    static func currentSpace(regularApps: [pid_t], excluding ownPID: pid_t, recent: [WindowKey]) -> Snapshot {
         let frontToBack = onScreenOrder(excluding: ownPID)
         var pids: [pid_t] = []
         for pid in frontToBack.map(\.pid) + regularApps where pid != ownPID && !pids.contains(pid) {
@@ -42,6 +44,7 @@ enum SwitcherWindows {
 
         let lists = inParallel(pids) { AppWindows.list(pid: $0) ?? [] }
         var snapshot = Snapshot()
+        snapshot.recent = recent
         for window in lists.joined() {
             guard let id = window.windowID else { continue }
             let key = WindowKey(pid: window.pid, windowID: id)
@@ -82,7 +85,7 @@ enum SwitcherWindows {
         return result
     }
 
-    private static func onScreenOrder(excluding ownPID: pid_t) -> [WindowKey] {
+    static func onScreenOrder(excluding ownPID: pid_t) -> [WindowKey] {
         windowKeys(options: [.optionOnScreenOnly, .excludeDesktopElements]).filter { $0.pid != ownPID }
     }
 

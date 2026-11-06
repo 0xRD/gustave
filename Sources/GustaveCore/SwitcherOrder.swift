@@ -9,20 +9,27 @@ public struct WindowKey: Hashable, Sendable {
     }
 }
 
-/// The switcher's order, as on Windows: most recently used first, which on screen is the
-/// window server's front to back order, then windows on other Spaces, then minimized ones.
+/// The switcher's order, as on Windows: most recently used first. Windows the user focused
+/// come first in that order, across Spaces. The rest follow the window server: on-screen
+/// front to back, then other Spaces. Minimized windows always come last.
 public enum SwitcherOrder {
-    /// `frontToBack` is the on-screen order, `otherSpaces` the windows of other Spaces in the
-    /// window server's order, `minimized` any stable order. A minimized window is listed
-    /// with the minimized ones wherever else it appears, and duplicates are dropped.
+    /// `recent` is the focus order, `frontToBack` the on-screen order, `otherSpaces` the
+    /// windows of other Spaces in the window server's order, `minimized` any stable order.
+    /// Only windows found in `frontToBack` or `otherSpaces` are listed from `recent`. A
+    /// minimized window is listed with the minimized ones, and duplicates are dropped.
     public static func order(
+        recent: [WindowKey] = [],
         frontToBack: [WindowKey],
         otherSpaces: [WindowKey] = [],
         minimized: [WindowKey]
     ) -> [WindowKey] {
         let minimizedSet = Set(minimized)
+        let present = Set(frontToBack + otherSpaces)
         var seen = Set<WindowKey>()
         var result: [WindowKey] = []
+        for key in recent where present.contains(key) && !minimizedSet.contains(key) && seen.insert(key).inserted {
+            result.append(key)
+        }
         for key in frontToBack + otherSpaces where !minimizedSet.contains(key) && seen.insert(key).inserted {
             result.append(key)
         }

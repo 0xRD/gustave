@@ -28,6 +28,7 @@ final class WindowSwitcher: ObservableObject {
     }
 
     private let hotKeys = HotKeyCenter()
+    private let focus = FocusTracker()
     private var shortcutIDs: [UInt32] = []
     private var escapeID: UInt32?
     private var flagMonitors: [Any] = []
@@ -52,8 +53,11 @@ final class WindowSwitcher: ObservableObject {
         isEnabled = enabled
         if enabled {
             register()
+            let own = ProcessInfo.processInfo.processIdentifier
+            focus.start(seed: SwitcherWindows.onScreenOrder(excluding: own))
         } else {
             end()
+            focus.stop()
             for id in shortcutIDs {
                 hotKeys.unregister(id)
             }
@@ -101,9 +105,10 @@ final class WindowSwitcher: ObservableObject {
         let regular = NSWorkspace.shared.runningApplications
             .filter { $0.activationPolicy == .regular }
             .map(\.processIdentifier)
+        let recent = focus.recent.keys
         AXQueues.windows.async { [weak self] in
             let started = Date()
-            let current = SwitcherWindows.currentSpace(regularApps: regular, excluding: own)
+            let current = SwitcherWindows.currentSpace(regularApps: regular, excluding: own, recent: recent)
             let windows = current.ordered
             Self.log.debug("list: \(windows.count) windows from \(regular.count) apps in \(Self.elapsed(since: started)) ms")
             DispatchQueue.main.async {

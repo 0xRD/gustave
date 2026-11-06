@@ -50,17 +50,22 @@ struct AXElement: @unchecked Sendable {
     /// Reads several attributes in one round trip. Nil when the app does not answer in time.
     /// A missing attribute comes back as nil in its slot.
     func values(_ attributes: [String]) -> [CFTypeRef?]? {
+        readValues(attributes).values
+    }
+
+    /// As `values`, with the error, for callers that must tell a timeout from a failure.
+    func readValues(_ attributes: [String]) -> (error: AXError, values: [CFTypeRef?]?) {
         var values: CFArray?
         let error = AXUIElementCopyMultipleAttributeValues(
             raw, attributes as CFArray, AXCopyMultipleAttributeOptions(rawValue: 0), &values)
         guard error == .success, let array = values as [AnyObject]?, array.count == attributes.count
-        else { return nil }
-        return array.map { value in
+        else { return (error == .success ? .failure : error, nil) }
+        return (.success, array.map { value in
             if CFGetTypeID(value) == AXValueGetTypeID(), AXValueGetType(value as! AXValue) == .axError {
                 return nil
             }
             return value
-        }
+        })
     }
 
     @discardableResult
