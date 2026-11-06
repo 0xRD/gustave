@@ -46,9 +46,14 @@ extension Settings: Codable {
         }
     }
 
+    /// Real settings are about 150 bytes. Anything far larger is not ours, and is refused
+    /// before parsing: older Foundation can run out of stack on deeply nested JSON.
+    public static let maxEncodedSize = 4096
+
     /// Never fails: anything unreadable decodes to the defaults.
     public static func decoded(from data: Data) -> Settings {
-        (try? JSONDecoder().decode(Settings.self, from: data)) ?? Settings()
+        guard data.count <= maxEncodedSize else { return Settings() }
+        return (try? JSONDecoder().decode(Settings.self, from: data)) ?? Settings()
     }
 
     public func encoded() -> Data {

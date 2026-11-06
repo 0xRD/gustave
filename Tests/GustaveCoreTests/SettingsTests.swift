@@ -50,6 +50,13 @@ func garbageDecodesToDefaults(json: String) {
     #expect(decode(json) == Settings())
 }
 
+@Test func oversizedDataIsRefusedBeforeParsing() {
+    let nested = String(repeating: "[", count: 100_000)
+    #expect(Settings.decoded(from: Data(nested.utf8)) == Settings())
+    let padded = #"{"switcherEnabled": true, "pad": ""# + String(repeating: "x", count: Settings.maxEncodedSize) + #""}"#
+    #expect(Settings.decoded(from: Data(padded.utf8)) == Settings())
+}
+
 @Test func nonUTF8DataDecodesToDefaults() {
     #expect(Settings.decoded(from: Data([0xFF, 0xFE, 0x00])) == Settings())
 }

@@ -23,5 +23,11 @@ test_args=()
 if [[ "$(xcode-select -p)" == "$clt" ]]; then
     test_args=(-Xswiftc -plugin-path -Xswiftc "$clt/usr/lib/swift/host/plugins/testing")
 fi
-swift test "${test_args[@]}" 2>&1 | tail -1
-exit "${pipestatus[1]}"
+test_status=0
+swift test "${test_args[@]}" > "$log" 2>&1 || test_status=$?
+# The summary on success; on failure, every failed expectation and crash too.
+if ((test_status != 0)); then
+    grep -E '✘|error:|Fatal error|fatalError|signal|crash' "$log" | head -40
+fi
+tail -1 "$log"
+exit "$test_status"
