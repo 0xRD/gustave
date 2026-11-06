@@ -75,18 +75,24 @@ private func checkInvariants(_ raw: String) {
     }
 }
 
-@Test(arguments: [
-    String(repeating: "a", count: 1_000_000),
-    String(repeating: "\u{202E}", count: 100_000) + "x",
-    "e" + String(repeating: "\u{0301}", count: 100_000),
-    String(repeating: "\u{1100}", count: 5_000),
-    String(repeating: "\u{1F468}\u{200D}", count: 10_000),
-    String(repeating: "\u{1F1EB}", count: 5_000),
-    String(repeating: " \u{0301}", count: 5_000),
-    String(repeating: "\u{E0041}", count: 5_000) + "flag",
-    String(repeating: "x", count: 120) + String(repeating: "\u{200B}", count: 3_000),
-    String(repeating: "x", count: 10) + String(repeating: "\u{200B}", count: 3_000),
-])
+/// Built step by step: written inline in the test's arguments, older compilers give up
+/// type-checking the expression.
+private let hugeAndHostileInputs: [String] = {
+    var inputs: [String] = []
+    inputs.append(String(repeating: "a", count: 1_000_000))
+    inputs.append(String(repeating: "\u{202E}", count: 100_000) + "x")
+    inputs.append("e" + String(repeating: "\u{0301}", count: 100_000))
+    inputs.append(String(repeating: "\u{1100}", count: 5_000))
+    inputs.append(String(repeating: "\u{1F468}\u{200D}", count: 10_000))
+    inputs.append(String(repeating: "\u{1F1EB}", count: 5_000))
+    inputs.append(String(repeating: " \u{0301}", count: 5_000))
+    inputs.append(String(repeating: "\u{E0041}", count: 5_000) + "flag")
+    inputs.append(String(repeating: "x", count: 120) + String(repeating: "\u{200B}", count: 3_000))
+    inputs.append(String(repeating: "x", count: 10) + String(repeating: "\u{200B}", count: 3_000))
+    return inputs
+}()
+
+@Test(arguments: hugeAndHostileInputs)
 func sanitiseHugeAndHostile(raw: String) {
     checkInvariants(raw)
 }
