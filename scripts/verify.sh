@@ -93,8 +93,8 @@ else
     fail "private APIs linked: $linked_private"
 fi
 
-approved_private='^_AXUIElement(CreateWithRemoteToken|GetWindow)$'
-named_private=$(strings -a "$binary" | grep -E '^_(AX|CGS|SLS|CoreDock)[A-Za-z]+$' | grep -vE "$approved_private")
+approved_private='^(_AXUIElement(CreateWithRemoteToken|GetWindow)|CoreDock(Get|Set)AutoHideEnabled)$'
+named_private=$(strings -a "$binary" | grep -E '^(_AX|_?CGS|_?SLS|_?CoreDock)[A-Za-z]+$' | grep -vE "$approved_private")
 if [[ -z "$named_private" ]]; then
     pass "only approved private APIs looked up"
 else

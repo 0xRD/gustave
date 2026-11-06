@@ -192,6 +192,23 @@ and V11 choice and its setting are removed. Old settings files that still hold a
 value decode as before, the key is ignored. The panel still reports `isKeyWindow` as true
 so materials draw active, as in the sample the user chose.
 
+### D22. Keep an auto-hiding Dock shown while the window list is open
+Approved by the user on 2026-11-06, who wants the Dock to stay up while they use the panel,
+as DockDoor does. With auto-hide on, the Dock hides as soon as the pointer moves onto the
+panel. DockDoor turns auto-hide off while its preview is open with the private
+`CoreDockGetAutoHideEnabled` and `CoreDockSetAutoHideEnabled`, and back on when it closes.
+Gustave does the same, and nothing else with them:
+- Only when auto-hide is on, and only while the Dock list panel is open.
+- A flag is written to Gustave's defaults before turning auto-hide off and removed after
+  turning it back on. If Gustave is killed in between, the next launch sees the flag and
+  turns auto-hide back on. Quitting normally also restores it.
+- Both functions are resolved with `dlsym`; without them the Dock is left alone.
+- Calls run on the Dock queue, in order, never on the main thread.
+Risk accepted: this changes a system preference for the time the panel is open; a crash
+followed by never relaunching Gustave would leave auto-hide off until the user turns it back
+on. The screen's visible frame changes while the Dock is held, which windows may notice.
+`CLAUDE.md` rule 4 names D17 only; adding D22 there is left to the user.
+
 ## Verified on device
 
 - 2026-11-01, macOS 26.6: codesign refuses an untrusted self-signed identity ("no identity

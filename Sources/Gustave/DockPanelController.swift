@@ -29,6 +29,7 @@ final class DockPanelController {
         self?.dockPointerChanged(event)
     }
 
+    private let dockAutoHide = DockAutoHide()
     private var hover: DockHover?
     /// True from the moment the panel opens until it starts closing, so a fade-out still on
     /// screen counts as closed.
@@ -64,6 +65,12 @@ final class DockPanelController {
 
     private func makeView() -> DockPanelView {
         DockPanelView(content: content, hover: highlight, actions: actions)
+    }
+
+    /// Puts the Dock's auto-hide back before Gustave quits.
+    func prepareForTermination() {
+        hide()
+        dockAutoHide.releaseNow()
     }
 
     /// Off removes the Dock observer entirely.
@@ -184,6 +191,7 @@ final class DockPanelController {
         panel.alphaValue = 0
         setFrame(start, duration: 0)
         panel.orderFrontRegardless()
+        dockAutoHide.hold()
         NSAnimationContext.runAnimationGroup { context in
             context.duration = Self.openDuration
             context.timingFunction = CAMediaTimingFunction(name: .easeOut)
@@ -252,6 +260,7 @@ final class DockPanelController {
     private func fadeOut() {
         guard isPresented else { return }
         isPresented = false
+        dockAutoHide.release()
         NSAnimationContext.runAnimationGroup { context in
             context.duration = Self.closeDuration
             context.timingFunction = CAMediaTimingFunction(name: .easeIn)

@@ -27,7 +27,8 @@ isolated enough that you can read and verify all of it.
 2. No network access of any kind. No analytics, no update check.
 3. No third-party dependencies. `Package.swift` must not list any.
 4. No private APIs, except the Accessibility ones approved in `docs/DECISIONS.md` (D17)
-   to list and focus windows on other Spaces. They grant no privilege beyond Accessibility.
+   to list and focus windows on other Spaces, and the Dock auto-hide pair (D22). They grant
+   no privilege beyond Accessibility.
 5. No privileged helper and no entitlements. The hardened runtime is on.
 6. A disabled feature is removed, not paused: its event monitor or tap is uninstalled.
 7. Window titles and app names are never interpreted: no URL opening, no shell, no

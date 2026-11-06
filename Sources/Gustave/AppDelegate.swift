@@ -20,6 +20,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     )
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        DockAutoHide.recoverAfterCrash()
+
         let defaults = UserDefaults.standard
         let isFirstLaunch = !defaults.bool(forKey: Self.hasLaunchedKey)
         defaults.set(true, forKey: Self.hasLaunchedKey)
@@ -39,6 +41,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if isFirstLaunch || !permission.isGranted {
             settingsWindow.show()
         }
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        dockPanel.prepareForTermination()
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows: Bool) -> Bool {
