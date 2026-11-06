@@ -44,6 +44,18 @@ They grant nothing beyond Accessibility. The reasoning for each is in
 
 ## Install
 
+With Homebrew:
+
+```sh
+brew install --cask 0xrd/tap/gustave
+```
+
+Gustave is not notarized by Apple, so on first launch allow it in System Settings, Privacy &
+Security, Open Anyway. Then grant Accessibility when it asks. Releases are signed with the
+same certificate each time, so the permission carries over to updates.
+
+### From source
+
 Requires macOS 15 or later on Apple silicon, and Xcode 16 or later or the Command Line
 Tools. Building with the macOS 26 SDK (Xcode 26) gives the panels Liquid Glass; older
 SDKs use a rounded blur instead.
@@ -74,16 +86,22 @@ shortcut off.
 
 ## Update
 
+With Homebrew, `brew upgrade --cask gustave`. From source:
+
 ```sh
 git pull && scripts/build-app.sh && cp -R build/Gustave.app /Applications/
 ```
 
+A source build is signed with your own certificate and a Homebrew one with the project's,
+so switching between them needs the Accessibility permission granted once more.
+
 ## Uninstall
 
-1. Quit Gustave from its settings window, and turn off Open at login first if it is on.
-2. Delete Gustave.app.
+1. Turn off Open at login if it is on, then quit Gustave from its settings window.
+2. Delete Gustave.app (or `brew uninstall --cask gustave`).
 3. Remove it from System Settings, Privacy & Security, Accessibility.
-4. Delete the "Gustave Local Signing" certificate in Keychain Access, login keychain.
+4. If you built from source, delete the "Gustave Local Signing" certificate in Keychain
+   Access, login keychain.
 5. Optional: `defaults delete io.github.0xrd.gustave`.
 
 ## Known limitations
@@ -114,7 +132,7 @@ scripts/check.sh         # release build with zero warnings, unit tests
 | `CLAUDE.md`, `docs/KICKOFF_PROMPT.md` | Rules and workflow for Claude Code, which wrote most of the code |
 | `Sources/GustaveCore` | Pure logic, unit tested |
 | `Sources/Gustave` | AppKit, SwiftUI and Accessibility glue |
-| `scripts/` | Signing, build, verification and quality gate |
+| `scripts/` | Signing, build, verification, quality gate and release (`release.sh`) |
 
 ## Acknowledgements
 

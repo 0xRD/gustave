@@ -396,6 +396,16 @@ so the label is hidden while the panel is open and shows again when it closes. S
 the 15 pt of D19's follow-up. To check on device: no part of the label shows below the panel,
 and the panel does not cover the icon.
 
+### D32. First release and the Homebrew cask
+Decided 2026-11-06, when the user made the repository public and asked for Gustave in their
+tap (0xRD/homebrew-tap, which ships apps as casks of a GitHub release zip with a pinned
+SHA-256, as Hector does). `scripts/release.sh` checks, builds, signs, verifies, archives with
+`ditto`, tags, publishes the release and prints the cask's version and checksum. Releases
+are signed locally with the "Gustave Local Signing" certificate, so the Accessibility grant
+of a Homebrew install carries over between releases (the designated requirement pins that
+certificate). Not notarized: first launch needs Open Anyway, as for Hector. Moving release
+signing to CI (D10, M5.5) would change the certificate, so users would grant once more.
+
 ## Verified on device
 
 - 2026-11-01, macOS 26.6: codesign refuses an untrusted self-signed identity ("no identity
