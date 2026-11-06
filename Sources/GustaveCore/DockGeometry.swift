@@ -23,6 +23,8 @@ public struct Rect: Equatable, Sendable {
 
     public var maxX: Double { x + width }
     public var maxY: Double { y + height }
+    public var midX: Double { x + width / 2 }
+    public var midY: Double { y + height / 2 }
 
     /// Inclusive on all sides: a pointer pinned to a screen edge must count as inside.
     public func contains(_ point: Point) -> Bool {

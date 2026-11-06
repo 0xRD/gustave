@@ -21,6 +21,7 @@ struct SettingsView: View {
             Divider()
 
             VStack(alignment: .leading, spacing: 8) {
+                Toggle("Show windows on Dock hover", isOn: $store.settings.dockListEnabled)
                 Toggle("Invert mouse scrolling", isOn: $store.settings.invertMouseScroll)
                 Toggle("Invert trackpad scrolling", isOn: $store.settings.invertTrackpadScroll)
                 if scrollInverter.isUnavailable {

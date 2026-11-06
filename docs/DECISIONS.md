@@ -88,6 +88,14 @@ alternative, treating a continuous event as a trackpad only when it carries a sc
 momentum phase (fields 99 and 123), is kept in reserve for smooth-scrolling mouse drivers.
 The user tested the continuous flag with their devices and it works, so it stays.
 
+### D14. Dock list details
+Decided 2026-11-06. Full screen is toggled by pressing the window's
+`kAXFullScreenButtonAttribute` button, not by setting `AXFullScreen`, which is not in the
+public headers. Dock hit testing and window listing run on separate serial queues, so a
+frozen app cannot delay the hover probe. A listing stops at the first timeout, so one frozen
+app costs one 0.3 s timeout, not one per window. The panel shows at most 20 rows. A closed or
+minimized row updates in place, without waiting for the app to report the change.
+
 ## Verified on device
 
 - 2026-11-01, macOS 26.6: codesign refuses an untrusted self-signed identity ("no identity
@@ -114,6 +122,11 @@ The user tested the continuous flag with their devices and it works, so it stays
   the reverse, work with their devices, as do momentum and latency. A tap installed at
   runtime by a toggle shows in `CGGetEventTapList`. Hector cannot show scroll taps yet
   (0xRD/hector#4), so removal by toggling off while running is not yet confirmed.
+- 2026-11-06, macOS 26.6: with the Dock list on, the global mouse-moved monitor adds no
+  event tap (`CGGetEventTapList` shows only the scroll tap) and causes no new TCC request.
+  Idle: 0.0 percent CPU, 12 MB, no sockets. Hover, panel and window actions are manual checks.
+- 2026-11-06, Command Line Tools with the macOS 27 SDK: SwiftUI's `@State` is a macro whose
+  plugin is not found, like Swift Testing's (D9). View state lives in observable models.
 
 ## Open questions
 

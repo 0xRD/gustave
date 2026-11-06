@@ -9,6 +9,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let permission = AccessibilityPermission()
     private let store = SettingsStore()
     private let scrollInverter = ScrollInverter()
+    private let dockPanel = DockPanelController()
     private var subscription: AnyCancellable?
     private lazy var settingsWindow = SettingsWindowController(
         store: store,
@@ -23,8 +24,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         subscription = store.$settings
             .combineLatest(permission.$isGranted)
-            .sink { [scrollInverter] settings, isGranted in
+            .sink { [scrollInverter, dockPanel] settings, isGranted in
                 scrollInverter.update(settings: settings, isPermissionGranted: isGranted)
+                dockPanel.setEnabled(settings.dockListEnabled && isGranted)
             }
 
         // Silent at login once everything is in place.
