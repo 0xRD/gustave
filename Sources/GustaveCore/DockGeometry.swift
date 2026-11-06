@@ -47,11 +47,6 @@ public struct DockPlacement: Equatable, Sendable {
 }
 
 public enum DockGeometry {
-    /// Width of the band watched when the Dock reserves no space (auto-hide). Also leaves
-    /// room for magnified icons, which grow past the reserved space.
-    public static let autoHideBand = 96.0
-    public static let hoverMargin = 24.0
-
     /// Infers the Dock from the space it reserves, in AppKit coordinates. Nil when it
     /// reserves none: it auto-hides, or it is on another screen. The menu bar reserves the
     /// top, which is why that gap is ignored.
@@ -73,23 +68,6 @@ public enum DockGeometry {
         case "left": .left
         case "right": .right
         default: .bottom
-        }
-    }
-
-    /// O(1) gate run on every mouse move, before any Accessibility call. `pointer` and
-    /// `frame` are in AppKit coordinates, where y grows upwards.
-    public static func isNearDock(
-        pointer: Point,
-        frame: Rect,
-        edge: DockEdge,
-        thickness: Double?
-    ) -> Bool {
-        guard frame.contains(pointer) else { return false }
-        let band = (thickness ?? autoHideBand) + hoverMargin
-        switch edge {
-        case .bottom: return pointer.y - frame.y <= band
-        case .left: return pointer.x - frame.x <= band
-        case .right: return frame.maxX - pointer.x <= band
         }
     }
 }

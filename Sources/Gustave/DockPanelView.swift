@@ -2,12 +2,17 @@ import AppKit
 import Combine
 import SwiftUI
 
+/// What the panel shows. Passed by value so the panel can be measured right after a change.
+struct DockPanelContent {
+    var appName = ""
+    var icon: NSImage?
+    var windows: [AppWindow] = []
+}
+
+/// Only the highlight changes without a new measurement.
 @MainActor
-final class DockPanelModel: ObservableObject {
-    @Published var appName = ""
-    @Published var icon: NSImage?
-    @Published var windows: [AppWindow] = []
-    @Published var hoveredWindow: AppWindow.ID?
+final class DockPanelHover: ObservableObject {
+    @Published var window: AppWindow.ID?
 }
 
 struct DockPanelActions {
@@ -19,45 +24,54 @@ struct DockPanelActions {
 }
 
 struct DockPanelView: View {
-    static let width = 320.0
+    static let width = 300.0
     /// More rows would not fit above a Dock on a small screen.
     static let maxRows = 20
 
-    @ObservedObject var model: DockPanelModel
+    let content: DockPanelContent
+    @ObservedObject var hover: DockPanelHover
     let actions: DockPanelActions
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: 1) {
             header
-            ForEach(model.windows.prefix(Self.maxRows)) { window in
+            Divider()
+                .padding(.horizontal, 9)
+                .padding(.vertical, 4)
+            ForEach(content.windows.prefix(Self.maxRows)) { window in
                 WindowRowView(
-                    icon: model.icon,
+                    icon: content.icon,
                     title: window.title,
                     isDimmed: window.isMinimized,
-                    isHighlighted: model.hoveredWindow == window.id
+                    isHighlighted: hover.window == window.id
                 ) {
                     controls(for: window)
                 }
-                .onHover { model.hoveredWindow = $0 ? window.id : nil }
+                .onHover { inside in
+                    if inside {
+                        hover.window = window.id
+                    } else if hover.window == window.id {
+                        hover.window = nil
+                    }
+                }
                 .onTapGesture { actions.select(window) }
             }
-            if model.windows.count > Self.maxRows {
-                Text(verbatim: "\(model.windows.count - Self.maxRows) more windows")
-                    .font(.caption)
+            if content.windows.count > Self.maxRows {
+                Text(verbatim: "\(content.windows.count - Self.maxRows) more windows")
+                    .font(.system(size: 11))
                     .foregroundStyle(.secondary)
-                    .padding(.horizontal, 8)
+                    .padding(.horizontal, 9)
+                    .padding(.top, 2)
             }
         }
-        .padding(6)
+        .padding(5)
         .frame(width: Self.width)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10))
     }
 
     private var header: some View {
-        HStack(spacing: 8) {
-            AppIconView(icon: model.icon)
-            Text(verbatim: model.appName)
-                .font(.headline)
+        HStack(spacing: 7) {
+            Text(verbatim: content.appName)
+                .font(.system(size: 13, weight: .semibold))
                 .lineLimit(1)
                 .truncationMode(.tail)
             Spacer()
@@ -65,24 +79,28 @@ struct DockPanelView: View {
                 Image(systemName: "power")
             }
             .buttonStyle(.borderless)
+            .foregroundStyle(.secondary)
             .help("Quit")
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
+        .padding(.horizontal, 9)
+        .padding(.top, 4)
     }
 
     private func controls(for window: AppWindow) -> some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 8) {
             Button { actions.close(window) } label: { Image(systemName: "xmark") }
                 .help("Close")
-            Button { actions.toggleMinimized(window) } label: { Image(systemName: "minus") }
-                .help(window.isMinimized ? "Restore" : "Minimize")
+            Button { actions.toggleMinimized(window) } label: {
+                Image(systemName: window.isMinimized ? "arrow.up.square" : "minus")
+            }
+            .help(window.isMinimized ? "Restore" : "Minimize")
             Button { actions.toggleFullScreen(window) } label: {
                 Image(systemName: "arrow.up.left.and.arrow.down.right")
             }
             .help("Full Screen")
         }
         .buttonStyle(.borderless)
-        .font(.caption)
+        .foregroundStyle(.white)
+        .font(.system(size: 11, weight: .medium))
     }
 }

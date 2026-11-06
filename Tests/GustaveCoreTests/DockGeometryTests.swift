@@ -54,62 +54,6 @@ private let menuBar = 37.0
     #expect(DockGeometry.edge(orientation: "sideways") == .bottom)
 }
 
-@Test func bottomGateFollowsThicknessAndMargin() {
-    let limit = 70 + DockGeometry.hoverMargin
-    func near(_ y: Double) -> Bool {
-        DockGeometry.isNearDock(
-            pointer: Point(x: 500, y: y), frame: screen, edge: .bottom, thickness: 70)
-    }
-    #expect(near(0))
-    #expect(near(limit))
-    #expect(!near(limit + 1))
-}
-
-@Test func leftGateMeasuresFromTheLeftEdge() {
-    let limit = 64 + DockGeometry.hoverMargin
-    func near(_ x: Double) -> Bool {
-        DockGeometry.isNearDock(
-            pointer: Point(x: x, y: 500), frame: screen, edge: .left, thickness: 64)
-    }
-    #expect(near(0))
-    #expect(near(limit))
-    #expect(!near(limit + 1))
-}
-
-@Test func rightGateMeasuresFromTheRightEdge() {
-    let limit = 64 + DockGeometry.hoverMargin
-    func near(_ x: Double) -> Bool {
-        DockGeometry.isNearDock(
-            pointer: Point(x: x, y: 500), frame: screen, edge: .right, thickness: 64)
-    }
-    #expect(near(screen.maxX))
-    #expect(near(screen.maxX - limit))
-    #expect(!near(screen.maxX - limit - 1))
-}
-
-@Test func autoHideUsesTheFallbackBand() {
-    let limit = DockGeometry.autoHideBand + DockGeometry.hoverMargin
-    #expect(DockGeometry.isNearDock(
-        pointer: Point(x: 500, y: limit), frame: screen, edge: .bottom, thickness: nil))
-    #expect(!DockGeometry.isNearDock(
-        pointer: Point(x: 500, y: limit + 1), frame: screen, edge: .bottom, thickness: nil))
-}
-
-@Test func gateIsFalseOnAnotherScreen() {
-    #expect(!DockGeometry.isNearDock(
-        pointer: Point(x: 2000, y: 10), frame: screen, edge: .bottom, thickness: 70))
-}
-
-@Test func gateWorksOnNegativeCoordinates() {
-    let frame = Rect(x: -1920, y: -300, width: 1920, height: 1080)
-    #expect(DockGeometry.isNearDock(
-        pointer: Point(x: -1000, y: -290), frame: frame, edge: .bottom, thickness: 70))
-    #expect(!DockGeometry.isNearDock(
-        pointer: Point(x: -1000, y: 400), frame: frame, edge: .bottom, thickness: 70))
-    #expect(DockGeometry.isNearDock(
-        pointer: Point(x: -1910, y: 100), frame: frame, edge: .left, thickness: 64))
-}
-
 @Test func pointFlipsAroundThePrimaryScreen() {
     #expect(ScreenCoordinates.flipped(Point(x: 100, y: 0), primaryScreenHeight: 982)
         == Point(x: 100, y: 982))

@@ -96,6 +96,24 @@ frozen app cannot delay the hover probe. A listing stops at the first timeout, s
 app costs one 0.3 s timeout, not one per window. The panel shows at most 20 rows. A closed or
 minimized row updates in place, without waiting for the app to report the change.
 
+### D15. Dock hover from the Dock's selection, not from the pointer
+Decided 2026-11-06, after the first device test missed some hovers. The Dock's AXList
+posts `kAXSelectedChildrenChangedNotification` whenever the icon under the pointer changes,
+including when the pointer leaves the Dock. Gustave observes it with a public `AXObserver`
+(the approach DockDoor uses) and reads the selected item. This replaces the global
+mouse-moved monitor, the edge gate and the 30 per second probe: no mouse events, no polling,
+and the Dock itself does the hit testing. The edge gate in Core was removed with it. The
+observer is re-attached when the Dock relaunches.
+
+### D16. Panel look and sizing
+Decided 2026-11-06 at the user's request: it should look like a system menu. macOS 26 and
+later use the public `NSGlassEffectView` (Liquid Glass) with a 14 pt corner radius, earlier
+systems the menu blur. DockDoor gets its glass through private SwiftUI internals, which
+Gustave does not use. Rows follow menu metrics (13 pt text, 26 pt rows, selection colour
+under the pointer) and show their controls only when highlighted. The content is passed to
+the view by value and measured after rendering, which fixes the clipped panel. Minimizing
+presses the window's minimize button. Restoring clears `AXMinimized`.
+
 ## Verified on device
 
 - 2026-11-01, macOS 26.6: codesign refuses an untrusted self-signed identity ("no identity
@@ -127,9 +145,15 @@ minimized row updates in place, without waiting for the app to report the change
   Idle: 0.0 percent CPU, 12 MB, no sockets. Hover, panel and window actions are manual checks.
 - 2026-11-06, Command Line Tools with the macOS 27 SDK: SwiftUI's `@State` is a macro whose
   plugin is not found, like Swift Testing's (D9). View state lives in observable models.
+- 2026-11-06, macOS 26.6, first Dock list test by the user: Safari showed one window of
+  three, a minimized window was missing, the minimize button did nothing, a panel was clipped,
+  some hovers showed nothing. Focus was never taken. Fixes in D15 and D16. The missing
+  windows are not explained yet: windows on other Spaces are expected to be missing (D4).
+  `AppWindows` logs counts and subroles at debug level, without titles, to find out.
 
 ## Open questions
 
 - How to obtain MRU window order without private APIs (SPEC F2, approaches A, B, C).
 - Whether an active scroll tap behaves the same on macOS 15. Accessibility is enough on 26.6.
 - Whether Dock hover works reliably with magnification and auto-hide.
+- Whether `AXWindows` omits minimized windows for some apps, or only windows on other Spaces.

@@ -67,8 +67,8 @@ Status: [ ] todo, [~] in progress, [x] done.
 - [~] M3.1 Accessibility helper layer with timeouts, all calls off the main thread,
   stale result protection (generation token).
 - [~] M3.2 Window enumeration and actions (raise, close, minimize, full screen, quit).
-- [~] M3.3 Dock hover detection: global monitor, edge gate, throttled probe, icon to
-  running app resolution, anchor rectangle.
+- [~] M3.3 Dock hover detection: Dock selection observer (D15), icon to running app
+  resolution, anchor rectangle.
 - [~] M3.4 Panel UI: non-activating panel, compact list rows as in `SPEC.md`, hover
   tracking, grace period close, placement for bottom, left and right Docks, clamped
   to the screen.

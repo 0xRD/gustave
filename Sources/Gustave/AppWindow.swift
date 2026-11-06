@@ -1,5 +1,6 @@
 import ApplicationServices
 import GustaveCore
+import os
 
 /// A standard window of a running app, as Accessibility reports it.
 struct AppWindow: Identifiable, @unchecked Sendable {
@@ -12,6 +13,8 @@ struct AppWindow: Identifiable, @unchecked Sendable {
 }
 
 enum AppWindows {
+    private static let log = Logger(subsystem: "io.github.0xrd.gustave", category: "windows")
+
     /// Apps with more windows than this are cut short: the list is for picking, not auditing.
     static let maxWindows = 64
 
@@ -29,10 +32,14 @@ enum AppWindows {
         guard error == .success, let windows = value as? [AXUIElement] else { return [] }
 
         var result: [AppWindow] = []
+        var skipped: [String] = []
         for raw in windows.prefix(maxWindows) {
             let window = AXElement(raw)
             guard let values = window.values(attributes) else { return nil }
-            guard values[0] as? String == kAXStandardWindowSubrole as String else { continue }
+            guard values[0] as? String == kAXStandardWindowSubrole as String else {
+                skipped.append(values[0] as? String ?? "none")
+                continue
+            }
             result.append(AppWindow(
                 id: result.count,
                 pid: pid,
@@ -41,6 +48,8 @@ enum AppWindows {
                 isMinimized: values[2] as? Bool ?? false
             ))
         }
+        // Counts and subroles only: titles stay out of the log.
+        log.debug("pid \(pid): \(windows.count) AX windows, \(result.count) standard, \(result.filter(\.isMinimized).count) minimized, skipped \(skipped, privacy: .public)")
         return result
     }
 
@@ -58,8 +67,13 @@ enum AppWindows {
         window.element.element(kAXCloseButtonAttribute)?.perform(kAXPressAction)
     }
 
+    /// Minimizing presses the window's button, which every app honours. A minimized window
+    /// has no usable button, so restoring clears the attribute.
     static func toggleMinimized(_ window: AppWindow) {
-        window.element.set(kAXMinimizedAttribute, window.isMinimized ? kCFBooleanFalse : kCFBooleanTrue)
+        let didApply = window.isMinimized
+            ? window.element.set(kAXMinimizedAttribute, kCFBooleanFalse)
+            : window.element.element(kAXMinimizeButtonAttribute)?.perform(kAXPressAction) ?? false
+        log.debug("pid \(window.pid): minimize toggle applied \(didApply)")
     }
 
     /// Presses the window's own full screen button, which toggles in both directions.

@@ -8,9 +8,11 @@ final class DockPanelController {
     private static let closeDelay: TimeInterval = 0.25
 
     private let panel = FloatingPanel()
-    private let model = DockPanelModel()
-    private var hostingView: NSView?
-    private lazy var monitor = DockHoverMonitor { [weak self] hover in
+    private let highlight = DockPanelHover()
+    private var content = DockPanelContent()
+    private var actions: DockPanelActions!
+    private var hostingView: FirstMouseHostingView<DockPanelView>!
+    private lazy var observer = DockHoverObserver { [weak self] hover in
         self?.hoverChanged(hover)
     }
 
@@ -21,27 +23,32 @@ final class DockPanelController {
     private var generation = 0
 
     init() {
-        let actions = DockPanelActions(
+        actions = DockPanelActions(
             select: { [weak self] window in self?.select(window) },
             close: { [weak self] window in self?.close(window) },
             toggleMinimized: { [weak self] window in self?.toggleMinimized(window) },
             toggleFullScreen: { [weak self] window in self?.toggleFullScreen(window) },
             quit: { [weak self] in self?.quit() }
         )
-        let hosting = FirstMouseHostingView(rootView: DockPanelView(model: model, actions: actions))
+        hostingView = FirstMouseHostingView(rootView: makeView())
+        let material = FloatingPanel.materialView(around: hostingView)
+        material.autoresizingMask = [.width, .height]
         let tracking = HoverTrackingView()
-        tracking.addSubview(hosting)
+        tracking.addSubview(material)
         tracking.onHoverChange = { [weak self] inside in self?.pointerOnPanelChanged(inside) }
         panel.contentView = tracking
-        hostingView = hosting
     }
 
-    /// Off removes the mouse monitor entirely.
+    private func makeView() -> DockPanelView {
+        DockPanelView(content: content, hover: highlight, actions: actions)
+    }
+
+    /// Off removes the Dock observer entirely.
     func setEnabled(_ isEnabled: Bool) {
         if isEnabled {
-            monitor.start()
+            observer.start()
         } else {
-            monitor.stop()
+            observer.stop()
             hide()
         }
     }
@@ -83,15 +90,21 @@ final class DockPanelController {
     }
 
     private func show(_ windows: [AppWindow], of app: NSRunningApplication) {
-        model.appName = DisplayTitle.sanitise(app.localizedName ?? "")
-        model.icon = app.icon
-        model.windows = windows
+        content = DockPanelContent(
+            appName: DisplayTitle.sanitise(app.localizedName ?? ""),
+            icon: app.icon,
+            windows: windows
+        )
+        highlight.window = nil
         place()
         panel.orderFrontRegardless()
     }
 
+    /// Renders the current content, measures it, and moves the panel next to the icon.
     private func place() {
-        guard let hover, let hostingView else { return }
+        guard let hover else { return }
+        hostingView.rootView = makeView()
+        hostingView.layoutSubtreeIfNeeded()
         let size = hostingView.fittingSize
         let frame = PanelPlacement.frame(
             width: size.width,
@@ -102,7 +115,8 @@ final class DockPanelController {
         )
         let rect = CGRect(x: frame.x, y: frame.y, width: frame.width, height: frame.height)
         panel.setFrame(rect, display: true)
-        hostingView.frame = CGRect(origin: .zero, size: rect.size)
+        panel.contentView?.subviews.first?.frame = CGRect(origin: .zero, size: rect.size)
+        panel.invalidateShadow()
     }
 
     private func hide() {
@@ -111,7 +125,7 @@ final class DockPanelController {
         panel.orderOut(nil)
         hover = nil
         isPointerOnPanel = false
-        model.windows = []
+        content = DockPanelContent()
     }
 
     private func pointerOnPanelChanged(_ inside: Bool) {
@@ -147,8 +161,8 @@ final class DockPanelController {
 
     private func close(_ window: AppWindow) {
         AXQueues.windows.async { AppWindows.close(window) }
-        model.windows.removeAll { $0.id == window.id }
-        if model.windows.isEmpty {
+        content.windows.removeAll { $0.id == window.id }
+        if content.windows.isEmpty {
             hide()
         } else {
             place()
@@ -157,14 +171,15 @@ final class DockPanelController {
 
     private func toggleMinimized(_ window: AppWindow) {
         AXQueues.windows.async { AppWindows.toggleMinimized(window) }
-        if let index = model.windows.firstIndex(where: { $0.id == window.id }) {
-            model.windows[index] = AppWindow(
+        if let index = content.windows.firstIndex(where: { $0.id == window.id }) {
+            content.windows[index] = AppWindow(
                 id: window.id,
                 pid: window.pid,
                 element: window.element,
                 title: window.title,
                 isMinimized: !window.isMinimized
             )
+            place()
         }
     }
 

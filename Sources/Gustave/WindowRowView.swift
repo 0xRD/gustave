@@ -1,8 +1,8 @@
 import AppKit
 import SwiftUI
 
-/// One window: app icon and title, as in the Dock list and the switcher. The title is
-/// already sanitised and is drawn verbatim, never as markdown or a format.
+/// One window, styled like a system menu item: app icon and title, highlighted under the
+/// pointer. The title is already sanitised and is drawn verbatim, never as markdown.
 struct WindowRowView<Controls: View>: View {
     let icon: NSImage?
     let title: String
@@ -11,20 +11,23 @@ struct WindowRowView<Controls: View>: View {
     @ViewBuilder let controls: () -> Controls
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 7) {
             AppIconView(icon: icon)
             Text(verbatim: title)
                 .lineLimit(1)
                 .truncationMode(.tail)
-            Spacer(minLength: 4)
+                .opacity(isDimmed ? 0.55 : 1)
+            Spacer(minLength: 6)
             controls()
+                .opacity(isHighlighted ? 1 : 0)
         }
-        .opacity(isDimmed ? 0.5 : 1)
-        .padding(.horizontal, 8)
-        .padding(.vertical, 5)
+        .font(.system(size: 13))
+        .foregroundStyle(isHighlighted ? Color.white : Color.primary)
+        .padding(.horizontal, 9)
+        .frame(height: 26)
         .background(
-            RoundedRectangle(cornerRadius: 6)
-                .fill(isHighlighted ? Color.accentColor.opacity(0.25) : Color.clear)
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(isHighlighted ? Color(nsColor: .selectedContentBackgroundColor) : Color.clear)
         )
         .contentShape(Rectangle())
     }
