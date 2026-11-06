@@ -3,7 +3,8 @@ import SwiftUI
 
 /// A borderless panel that floats over every Space and never takes focus.
 final class FloatingPanel: NSPanel {
-    static let cornerRadius = 14.0
+    /// The radius of a system menu on macOS 26.
+    static let cornerRadius = 12.0
 
     init() {
         super.init(
@@ -27,6 +28,10 @@ final class FloatingPanel: NSPanel {
     override var canBecomeKey: Bool { false }
     override var canBecomeMain: Bool { false }
 
+    /// Glass draws a flat, subdued look in windows that are not key. The panel never takes
+    /// keyboard focus (`canBecomeKey` is false); this only makes it draw like a menu does.
+    override var isKeyWindow: Bool { true }
+
     /// Puts `content` on the system material: Liquid Glass from macOS 26, the menu blur
     /// before it. Both are rounded like a system menu.
     static func materialView(around content: NSView) -> NSView {
@@ -35,6 +40,7 @@ final class FloatingPanel: NSPanel {
             let glass = NSGlassEffectView()
             glass.cornerRadius = cornerRadius
             glass.contentView = content
+            MenuGlass.apply(to: glass)
             return glass
         }
         #endif
@@ -50,6 +56,19 @@ final class FloatingPanel: NSPanel {
         content.autoresizingMask = [.width, .height]
         blur.addSubview(content)
         return blur
+    }
+}
+
+/// The private glass setting that system menus use on macOS 26 (docs/DECISIONS.md, D19),
+/// read from an `NSMenu` window. Set only when the view answers it, so a macOS without it
+/// keeps the public look.
+enum MenuGlass {
+    private static let adaptiveAppearanceKey = "_adaptiveAppearance"
+    private static let menuAdaptiveAppearance = 1
+
+    static func apply(to view: NSView) {
+        guard view.responds(to: NSSelectorFromString("set_adaptiveAppearance:")) else { return }
+        view.setValue(menuAdaptiveAppearance, forKey: adaptiveAppearanceKey)
     }
 }
 

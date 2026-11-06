@@ -32,6 +32,9 @@ the icon. One row per standard window, in the style of DockDoor's compact list.
 - Header: app icon, app name, quit button.
 - Row: app icon, window title (single line, tail truncated), controls: close, minimize,
   full screen toggle. Minimized windows are dimmed.
+- The panel opens after the pointer rests on the icon for a delay set in settings
+  (0.5 s by default, 0 to 2 s). Once open, moving to another icon switches at once.
+- Row controls use the system title bar button colours.
 - Clicking a row raises that window, restores it if minimized, and activates the app.
 - The panel stays open while the pointer is on the icon or the panel, and closes after
   a short grace period (about 250 ms) once it leaves both. It also closes on a click
@@ -44,7 +47,7 @@ the icon. One row per standard window, in the style of DockDoor's compact list.
 
 Acceptance:
 - No Screen Recording permission requested at any point.
-- Panel appears within about 150 ms of hovering an icon with a responsive app.
+- Panel appears within about 150 ms of the hover delay ending, with a responsive app.
 - A frozen app does not freeze Gustave or delay other apps' panels beyond the AX timeout.
 - Window titles with control characters, bidi overrides or huge length render safely.
 

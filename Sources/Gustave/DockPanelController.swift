@@ -21,6 +21,8 @@ final class DockPanelController {
     }
 
     private var hover: DockHover?
+    private var hoverDelay = Settings.defaultDockHoverDelay
+    private var pendingShow: DispatchWorkItem?
     private var pendingClose: DispatchWorkItem?
     private var generation = 0
     /// Present only while the panel is visible, to close it the moment it is left behind.
@@ -50,7 +52,8 @@ final class DockPanelController {
     }
 
     /// Off removes the Dock observer entirely.
-    func setEnabled(_ isEnabled: Bool) {
+    func setEnabled(_ isEnabled: Bool, hoverDelay: Double) {
+        self.hoverDelay = hoverDelay
         if isEnabled {
             observer.start()
         } else {
@@ -59,7 +62,10 @@ final class DockPanelController {
         }
     }
 
+    /// The first icon waits for the delay. Once the panel is open, moving along the Dock
+    /// switches at once, as tooltips do.
     private func hoverChanged(_ newHover: DockHover?) {
+        cancelShow()
         guard let newHover else {
             scheduleClose()
             return
@@ -67,11 +73,29 @@ final class DockPanelController {
         cancelClose()
         let isSameApp = newHover.app.processIdentifier == hover?.app.processIdentifier
         hover = newHover
-        if isSameApp && panel.isVisible {
-            place()
-        } else {
-            loadWindows(for: newHover)
+        if panel.isVisible {
+            if isSameApp {
+                place()
+            } else {
+                loadWindows(for: newHover)
+            }
+            return
         }
+        let work = DispatchWorkItem { [weak self] in
+            MainActor.assumeIsolated {
+                guard let self, let hover = self.hover, hover.app.processIdentifier == newHover.app.processIdentifier
+                else { return }
+                self.pendingShow = nil
+                self.loadWindows(for: hover)
+            }
+        }
+        pendingShow = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + hoverDelay, execute: work)
+    }
+
+    private func cancelShow() {
+        pendingShow?.cancel()
+        pendingShow = nil
     }
 
     private func loadWindows(for hover: DockHover) {
@@ -138,6 +162,7 @@ final class DockPanelController {
 
     private func hide() {
         generation += 1
+        cancelShow()
         cancelClose()
         removeDismissal()
         panel.orderOut(nil)

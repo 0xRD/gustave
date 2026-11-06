@@ -7,13 +7,25 @@ public struct Settings: Equatable, Sendable {
     public var switcherEnabled = false
     public var invertMouseScroll = false
     public var invertTrackpadScroll = false
+    /// Seconds the pointer rests on a Dock icon before its window list opens.
+    public var dockHoverDelay = Settings.defaultDockHoverDelay {
+        didSet { dockHoverDelay = Settings.clampedDelay(dockHoverDelay) }
+    }
+
+    public static let defaultDockHoverDelay = 0.5
+    public static let dockHoverDelayRange = 0.0...2.0
 
     public init() {}
+
+    static func clampedDelay(_ value: Double) -> Double {
+        guard value.isFinite else { return defaultDockHoverDelay }
+        return min(max(value, dockHoverDelayRange.lowerBound), dockHoverDelayRange.upperBound)
+    }
 }
 
 extension Settings: Codable {
     private enum CodingKeys: String, CodingKey {
-        case dockListEnabled, switcherEnabled, invertMouseScroll, invertTrackpadScroll
+        case dockListEnabled, switcherEnabled, invertMouseScroll, invertTrackpadScroll, dockHoverDelay
     }
 
     public init(from decoder: any Decoder) throws {
@@ -28,6 +40,10 @@ extension Settings: Codable {
         switcherEnabled = flag(.switcherEnabled, default: switcherEnabled)
         invertMouseScroll = flag(.invertMouseScroll, default: invertMouseScroll)
         invertTrackpadScroll = flag(.invertTrackpadScroll, default: invertTrackpadScroll)
+        // Observers do not run inside the type's own initialiser, so clamp here too.
+        if let delay = try? container.decodeIfPresent(Double.self, forKey: .dockHoverDelay) {
+            dockHoverDelay = Settings.clampedDelay(delay)
+        }
     }
 
     /// Never fails: anything unreadable decodes to the defaults.

@@ -77,7 +77,12 @@ enum AppWindows {
             let window = AXElement(raw)
             guard let values = window.values(attributes) else { break }
             remaining.remove(windowID)
-            guard isSwitchable(window, subrole: values[0] as? String, layers: layers) else { continue }
+            // Hidden helper windows, such as an Electron app's background window, have no
+            // title. Windows on the current Space are not filtered this way: public
+            // Accessibility already leaves hidden windows out.
+            let title = (values[1] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !title.isEmpty, isSwitchable(window, subrole: values[0] as? String, layers: layers)
+            else { continue }
             found.append(makeWindow(window, pid: pid, id: known.count + found.count, values: values))
         }
         log.debug("pid \(pid): \(missing.count) windows not on this Space, \(found.count) found")

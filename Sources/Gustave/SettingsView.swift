@@ -1,3 +1,4 @@
+import GustaveCore
 import SwiftUI
 
 struct SettingsView: View {
@@ -22,6 +23,16 @@ struct SettingsView: View {
 
             VStack(alignment: .leading, spacing: 8) {
                 Toggle("Show windows on Dock hover", isOn: $store.settings.dockListEnabled)
+                if store.settings.dockListEnabled {
+                    HStack {
+                        Text("Delay")
+                        Slider(value: $store.settings.dockHoverDelay, in: Settings.dockHoverDelayRange, step: 0.1)
+                        Text(verbatim: String(format: "%.1f s", store.settings.dockHoverDelay))
+                            .monospacedDigit()
+                            .frame(width: 40, alignment: .trailing)
+                    }
+                    .padding(.leading, 20)
+                }
                 Toggle("Invert mouse scrolling", isOn: $store.settings.invertMouseScroll)
                 Toggle("Invert trackpad scrolling", isOn: $store.settings.invertTrackpadScroll)
                 if scrollInverter.isUnavailable {

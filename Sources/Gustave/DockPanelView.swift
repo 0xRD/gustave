@@ -47,7 +47,7 @@ struct DockPanelView: View {
                     isDimmed: window.isMinimized,
                     isHighlighted: hover.row == index
                 ) {
-                    controls(for: window)
+                    controls(for: window, isHighlighted: hover.row == index)
                 }
                 .frame(height: DockPanelLayout.rowHeight)
                 .onTapGesture { actions.select(window) }
@@ -68,11 +68,13 @@ struct DockPanelView: View {
         HStack(spacing: 7) {
             Text(verbatim: content.appName)
                 .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(.secondary)
                 .lineLimit(1)
                 .truncationMode(.tail)
             Spacer()
             Button(action: actions.quit) {
                 Image(systemName: "power")
+                    .font(.system(size: 11, weight: .medium))
             }
             .buttonStyle(.borderless)
             .foregroundStyle(.secondary)
@@ -81,21 +83,16 @@ struct DockPanelView: View {
         .padding(.horizontal, 9)
     }
 
-    private func controls(for window: AppWindow) -> some View {
-        HStack(spacing: 8) {
-            Button { actions.close(window) } label: { Image(systemName: "xmark") }
+    /// Hidden until the row is highlighted, like a menu item's extra controls.
+    private func controls(for window: AppWindow, isHighlighted: Bool) -> some View {
+        HStack(spacing: 6) {
+            TrafficLightButton(kind: .close, showsGlyph: isHighlighted) { actions.close(window) }
                 .help("Close")
-            Button { actions.toggleMinimized(window) } label: {
-                Image(systemName: window.isMinimized ? "arrow.up.square" : "minus")
-            }
-            .help(window.isMinimized ? "Restore" : "Minimize")
-            Button { actions.toggleFullScreen(window) } label: {
-                Image(systemName: "arrow.up.left.and.arrow.down.right")
-            }
-            .help("Full Screen")
+            TrafficLightButton(kind: .minimize, showsGlyph: isHighlighted) { actions.toggleMinimized(window) }
+                .help(window.isMinimized ? "Restore" : "Minimize")
+            TrafficLightButton(kind: .zoom, showsGlyph: isHighlighted) { actions.toggleFullScreen(window) }
+                .help("Full Screen")
         }
-        .buttonStyle(.borderless)
-        .foregroundStyle(.white)
-        .font(.system(size: 11, weight: .medium))
+        .opacity(isHighlighted ? 1 : 0)
     }
 }

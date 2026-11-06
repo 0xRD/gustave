@@ -26,7 +26,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             .combineLatest(permission.$isGranted)
             .sink { [scrollInverter, dockPanel] settings, isGranted in
                 scrollInverter.update(settings: settings, isPermissionGranted: isGranted)
-                dockPanel.setEnabled(settings.dockListEnabled && isGranted)
+                dockPanel.setEnabled(settings.dockListEnabled && isGranted, hoverDelay: settings.dockHoverDelay)
             }
 
         // Silent at login once everything is in place.

@@ -20,6 +20,7 @@ private func decode(_ json: String) -> Settings {
     settings.switcherEnabled = true
     settings.invertMouseScroll = true
     settings.invertTrackpadScroll = true
+    settings.dockHoverDelay = 1.25
     #expect(Settings.decoded(from: settings.encoded()) == settings)
 }
 
@@ -51,4 +52,29 @@ func garbageDecodesToDefaults(json: String) {
 
 @Test func nonUTF8DataDecodesToDefaults() {
     #expect(Settings.decoded(from: Data([0xFF, 0xFE, 0x00])) == Settings())
+}
+
+@Test func hoverDelayDefaultsToHalfASecond() {
+    #expect(Settings().dockHoverDelay == 0.5)
+    #expect(decode(#"{"dockListEnabled": true}"#).dockHoverDelay == 0.5)
+}
+
+@Test(arguments: [(-3.0, 0.0), (0.0, 0.0), (0.8, 0.8), (2.0, 2.0), (60.0, 2.0)])
+func hoverDelayIsClamped(input: Double, expected: Double) {
+    #expect(decode(#"{"dockHoverDelay": \#(input)}"#).dockHoverDelay == expected)
+    var settings = Settings()
+    settings.dockHoverDelay = input
+    #expect(settings.dockHoverDelay == expected)
+}
+
+@Test func nonFiniteHoverDelayFallsBackToTheDefault() {
+    var settings = Settings()
+    settings.dockHoverDelay = .infinity
+    #expect(settings.dockHoverDelay == Settings.defaultDockHoverDelay)
+    settings.dockHoverDelay = .nan
+    #expect(settings.dockHoverDelay == Settings.defaultDockHoverDelay)
+}
+
+@Test func wrongTypeHoverDelayDefaults() {
+    #expect(decode(#"{"dockHoverDelay": "slow"}"#).dockHoverDelay == Settings.defaultDockHoverDelay)
 }

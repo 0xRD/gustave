@@ -19,14 +19,13 @@ struct WindowRowView<Controls: View>: View {
                 .opacity(isDimmed ? 0.55 : 1)
             Spacer(minLength: 6)
             controls()
-                .opacity(isHighlighted ? 1 : 0)
         }
         .font(.system(size: 13))
         .foregroundStyle(isHighlighted ? Color.white : Color.primary)
         .padding(.horizontal, 9)
         .frame(maxHeight: .infinity)
         .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
                 .fill(isHighlighted ? Color(nsColor: .selectedContentBackgroundColor) : Color.clear)
         )
         .contentShape(Rectangle())
@@ -45,5 +44,49 @@ struct AppIconView: View {
             }
         }
         .frame(width: 16, height: 16)
+    }
+}
+
+/// A window title bar button, in its system colours. The glyph shows while the row is
+/// highlighted, as it does when hovering a title bar.
+struct TrafficLightButton: View {
+    enum Kind {
+        case close, minimize, zoom
+
+        var color: Color {
+            switch self {
+            case .close: Color(red: 1.0, green: 0.373, blue: 0.341)
+            case .minimize: Color(red: 0.996, green: 0.737, blue: 0.180)
+            case .zoom: Color(red: 0.157, green: 0.784, blue: 0.251)
+            }
+        }
+
+        var symbol: String {
+            switch self {
+            case .close: "xmark"
+            case .minimize: "minus"
+            case .zoom: "arrow.up.left.and.arrow.down.right"
+            }
+        }
+    }
+
+    let kind: Kind
+    let showsGlyph: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            ZStack {
+                Circle()
+                    .fill(kind.color)
+                    .overlay(Circle().strokeBorder(Color.black.opacity(0.12), lineWidth: 0.5))
+                Image(systemName: kind.symbol)
+                    .font(.system(size: 6.5, weight: .heavy))
+                    .foregroundStyle(Color.black.opacity(0.55))
+                    .opacity(showsGlyph ? 1 : 0)
+            }
+            .frame(width: 12, height: 12)
+        }
+        .buttonStyle(.plain)
     }
 }

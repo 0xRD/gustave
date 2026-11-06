@@ -142,6 +142,20 @@ tracking area reports pointer moves, and the row comes from fixed metrics in Cor
 (`DockPanelLayout`). Keeping the Dock shown while the pointer is on the panel is not possible
 with public API: the Dock hides as it does for DockDoor.
 
+### D19. System menu look for the Dock list
+Approved by the user on 2026-11-06 ("if you have to use a private function do it"), after
+the D16 panel still looked out of place. Read on device from a live `NSMenu` window: system
+menus use `NSGlassView` with a 12 pt radius, `_variant` 0, `_subduedState` 0 and
+`_adaptiveAppearance` 1, where a plain `NSGlassEffectView` defaults to 2. Gustave sets
+`_adaptiveAppearance` to 1 through key-value coding, only when the view answers the setter.
+The panel reports `isKeyWindow` as true so the glass draws its active look; `canBecomeKey`
+stays false, so it never takes keyboard focus. Rejected: DockDoor's private SwiftUI glass,
+which copies values of unknown size into a fixed buffer and can corrupt memory when the
+layout changes. Row controls are the title bar buttons in their system colours, with glyphs
+on the highlighted row. The panel opens after a hover delay, 0.5 s by default, set in
+settings from 0 to 2 s. Windows found only by the other-Spaces search need a title, which
+drops hidden helper windows such as Electron's.
+
 ## Verified on device
 
 - 2026-11-01, macOS 26.6: codesign refuses an untrusted self-signed identity ("no identity
