@@ -125,7 +125,7 @@ Both are resolved with `dlsym` at run time, never declared for the linker, so a 
 removes them still launches Gustave and simply lists the current Space. Probing is bounded:
 it runs off the main thread, only when the public window list shows the app has windows
 that Accessibility did not return, stops at the first timeout and after 100 ms, and never
-looks past element id 1000. Risks accepted: they can change in any macOS update, and a
+looks past element id 1000 (raised to 10,000 by D33). Risks accepted: they can change in any macOS update, and a
 changed signature could crash Gustave. They add no privilege: everything they reach is
 already reachable with Accessibility. Not allowed under this decision: Screen Recording,
 CGS or SkyLight window server calls, private Dock calls. Focusing a window on another
@@ -405,6 +405,33 @@ are signed locally with the "Gustave Local Signing" certificate, so the Accessib
 of a Homebrew install carries over between releases (the designated requirement pins that
 certificate). Not notarized: first launch needs Open Anyway, as for Hector. Moving release
 signing to CI (D10, M5.5) would change the certificate, so users would grant once more.
+
+### D33. Resubscribe to the Dock, and search element ids up to 10,000
+Decided 2026-11-07 at the user's request ("fix only the bugs not induced by having two
+gustaves running"), after they found hovers showing nothing for Safari, then for every app.
+From their debug log:
+- An instance running since the evening before showed no list for any app: no hover reached
+  the window lookup. The Dock's process had not changed since October, and the Mac had slept
+  and woken several times with the lid closed. A fresh instance worked for every app. The
+  likely cause is that the Dock replaced its list element while keeping its process, which
+  leaves the selection subscription silent with no error; Gustave only resubscribed when the
+  Dock's process changed. Not reproduced yet. The observer now also watches the list for
+  `kAXUIElementDestroyedNotification`, and resubscribes 1 s after a wake
+  (`NSWorkspace.didWakeNotification`) or a display change
+  (`NSApplication.didChangeScreenParametersNotification`). All three are events; nothing
+  polls, and the observers go when the Dock list is turned off.
+- Safari's two windows on another Space were found only after the user focused them there.
+  The search stopped at the id limit with one window not reached: "stopped: id limit, last id
+  1000, 41 ms". Measured on device, 0 to 999 takes 35 to 41 ms, about 40 microseconds per id.
+  The limit is now 10,000, about 0.4 s at that rate, still under the 1 s backstop. This
+  revises D17 and D27's "stays 0 to 999". The search runs only for an app with a window on
+  another Space that is neither listed nor remembered, after the panel has opened, on its
+  own queue, and stops once every such window is found; a found window is remembered (D27),
+  so the next hover does not search for it. The cost falls on a window above 10,000 or one
+  that never matches, which is searched again on each hover. No new private API.
+To check on device: after sleep and wake, and after plugging or unplugging a display,
+hovering still shows the list without restarting Gustave; the search's log line shows the
+time taken past id 1000.
 
 ## Verified on device
 

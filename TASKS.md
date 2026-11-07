@@ -79,6 +79,8 @@ Status: [ ] todo, [~] in progress, [x] done.
   - Done: minimize and close from a row (user, 2026-11-06).
   - Open: left and right Docks,
     two displays, a frozen app, a hostile title, Stage Manager.
+  - Open (D33): hover still works after sleep and wake and after a display change, without
+    restarting Gustave; Safari windows with element ids above 1000 are found.
 
 ## M4. Option+Tab switcher (F2)
 

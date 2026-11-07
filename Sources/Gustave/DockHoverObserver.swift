@@ -36,12 +36,16 @@ final class DockHoverObserver {
     /// A new Dock answers Accessibility only after a moment.
     private static let attachRetries = 5
     private static let attachRetryDelay: TimeInterval = 0.5
+    /// After a wake or a display change the Dock may rebuild its list a moment later.
+    private static let resubscribeDelay: TimeInterval = 1.0
 
     private var isRunning = false
     private var observer: AXObserver?
     private var list: AXElement?
     private var attachedDockPID: pid_t?
     private var runningAppsObservation: NSKeyValueObservation?
+    private var systemObservers: [(NotificationCenter, NSObjectProtocol)] = []
+    private var pendingResubscribe: DispatchWorkItem?
     private var current: DockHoverEvent = .outside
     private var generation = 0
 
@@ -60,6 +64,17 @@ final class DockHoverObserver {
                 MainActor.assumeIsolated { self?.dockMayHaveChanged() }
             }
         }
+        // The Dock can replace its list while keeping its process, around sleep and display
+        // changes, which leaves the subscription silent. Both are events, not polls.
+        let observations: [(NotificationCenter, Notification.Name)] = [
+            (NSWorkspace.shared.notificationCenter, NSWorkspace.didWakeNotification),
+            (NotificationCenter.default, NSApplication.didChangeScreenParametersNotification),
+        ]
+        systemObservers = observations.map { center, name in
+            (center, center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { self?.scheduleResubscribe() }
+            })
+        }
         attach(retriesLeft: Self.attachRetries)
     }
 
@@ -68,6 +83,12 @@ final class DockHoverObserver {
         isRunning = false
         runningAppsObservation?.invalidate()
         runningAppsObservation = nil
+        for (center, token) in systemObservers {
+            center.removeObserver(token)
+        }
+        systemObservers = []
+        pendingResubscribe?.cancel()
+        pendingResubscribe = nil
         detach()
         attachedDockPID = nil
         current = .outside
@@ -80,6 +101,27 @@ final class DockHoverObserver {
 
     private func dockMayHaveChanged() {
         guard isRunning, Self.dockPID() != attachedDockPID else { return }
+        attach(retriesLeft: Self.attachRetries)
+    }
+
+    /// One resubscription for a burst of wake and display notifications.
+    private func scheduleResubscribe() {
+        pendingResubscribe?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            MainActor.assumeIsolated {
+                guard let self, self.isRunning else { return }
+                self.pendingResubscribe = nil
+                self.attach(retriesLeft: Self.attachRetries)
+            }
+        }
+        pendingResubscribe = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.resubscribeDelay, execute: work)
+    }
+
+    /// The list is gone: subscribe to the one that replaces it.
+    fileprivate func listDestroyed() {
+        guard isRunning else { return }
+        report(.outside)
         attach(retriesLeft: Self.attachRetries)
     }
 
@@ -96,7 +138,7 @@ final class DockHoverObserver {
         let address = UInt(bitPattern: Unmanaged.passUnretained(self).toOpaque())
         AXQueues.dock.async { [weak self] in
             guard let refcon = UnsafeMutableRawPointer(bitPattern: address) else { return }
-            let subscription = DockProbe.subscribe(dockPID: dockPID, callback: dockSelectionChanged, refcon: refcon)
+            let subscription = DockProbe.subscribe(dockPID: dockPID, callback: dockNotification, refcon: refcon)
             DispatchQueue.main.async {
                 MainActor.assumeIsolated {
                     guard let self, token == self.generation, self.isRunning else { return }
@@ -131,10 +173,7 @@ final class DockHoverObserver {
             // Unsubscribing is a call into the Dock: off the main thread, like every other.
             if let list {
                 let subscription = DockProbe.Subscription(observer: observer, list: list)
-                AXQueues.dock.async {
-                    AXObserverRemoveNotification(
-                        subscription.observer, subscription.list.raw, kAXSelectedChildrenChangedNotification as CFString)
-                }
+                AXQueues.dock.async { DockProbe.unsubscribe(subscription) }
             }
         }
         observer = nil
@@ -198,13 +237,20 @@ final class DockHoverObserver {
     }
 }
 
-private func dockSelectionChanged(
+private func dockNotification(
     _ observer: AXObserver, _ element: AXUIElement, _ notification: CFString, _ refcon: UnsafeMutableRawPointer?
 ) {
     guard let refcon else { return }
     // The run loop source is on the main run loop.
     let hoverObserver = Unmanaged<DockHoverObserver>.fromOpaque(refcon).takeUnretainedValue()
-    MainActor.assumeIsolated { hoverObserver.selectionChanged() }
+    let isDestroyed = (notification as String) == kAXUIElementDestroyedNotification
+    MainActor.assumeIsolated {
+        if isDestroyed {
+            hoverObserver.listDestroyed()
+        } else {
+            hoverObserver.selectionChanged()
+        }
+    }
 }
 
 extension Rect {

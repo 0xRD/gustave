@@ -18,7 +18,15 @@ enum DockProbe {
         let list: AXElement
     }
 
-    /// Asks the Dock to report changes of its selection, which follows the pointer.
+    /// Watched on the Dock's list. Selection changes follow the pointer; the list being
+    /// destroyed means the Dock replaced it while keeping its process, and a subscription
+    /// left on the old list would go silent without any error.
+    static let notifications = [
+        kAXSelectedChildrenChangedNotification as String,
+        kAXUIElementDestroyedNotification as String,
+    ]
+
+    /// Asks the Dock to report changes of its selection, and the end of its list.
     static func subscribe(
         dockPID: pid_t,
         callback: AXObserverCallback,
@@ -34,7 +42,15 @@ enum DockProbe {
               AXObserverAddNotification(
                 observer, list.raw, kAXSelectedChildrenChangedNotification as CFString, refcon) == .success
         else { return nil }
+        // Best effort: wake and display changes also resubscribe, should the Dock not post it.
+        AXObserverAddNotification(observer, list.raw, kAXUIElementDestroyedNotification as CFString, refcon)
         return Subscription(observer: observer, list: list)
+    }
+
+    static func unsubscribe(_ subscription: Subscription) {
+        for name in notifications {
+            AXObserverRemoveNotification(subscription.observer, subscription.list.raw, name as CFString)
+        }
     }
 
     enum Selection: Sendable {
