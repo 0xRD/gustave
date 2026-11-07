@@ -2,31 +2,31 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>CFBundleDisplayName</key>
-	<string>Gustave</string>
-	<key>CFBundleExecutable</key>
-	<string>Gustave</string>
-	<key>CFBundleIconFile</key>
-	<string>Gustave</string>
-	<key>CFBundleIdentifier</key>
-	<string>io.github.0xrd.gustave</string>
-	<key>CFBundleName</key>
-	<string>Gustave</string>
-	<key>CFBundlePackageType</key>
-	<string>APPL</string>
-	<key>CFBundleShortVersionString</key>
-	<string>0.1.1</string>
-	<key>CFBundleVersion</key>
-	<string>2</string>
-	<key>LSMinimumSystemVersion</key>
-	<string>15.0</string>
-	<key>LSUIElement</key>
-	<true/>
-	<key>NSHighResolutionCapable</key>
-	<true/>
-	<key>NSSupportsAutomaticTermination</key>
-	<false/>
-	<key>NSSupportsSuddenTermination</key>
-	<false/>
+    <key>CFBundleIdentifier</key>
+    <string>io.github.0xrd.gustave</string>
+    <key>CFBundleName</key>
+    <string>Gustave</string>
+    <key>CFBundleDisplayName</key>
+    <string>Gustave</string>
+    <key>CFBundleExecutable</key>
+    <string>Gustave</string>
+    <key>CFBundleIconFile</key>
+    <string>Gustave</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleShortVersionString</key>
+    <string>0.1.1</string>
+    <key>CFBundleVersion</key>
+    <string>2</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>15.0</string>
+    <key>LSUIElement</key>
+    <true/>
+    <key>NSHighResolutionCapable</key>
+    <true/>
+    <key>NSSupportsAutomaticTermination</key>
+    <false/>
+    <key>NSSupportsSuddenTermination</key>
+    <false/>
 </dict>
 </plist>
