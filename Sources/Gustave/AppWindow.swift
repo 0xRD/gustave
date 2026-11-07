@@ -20,11 +20,13 @@ enum AppWindows {
 
     /// Apps with more windows than this are cut short: the list is for picking, not auditing.
     static let maxWindows = 64
-    /// Bounds on the search for windows on other Spaces (D17, D26). The search runs only for
-    /// apps that really have a window on another Space, so it can cover every element id;
-    /// the time limit is a backstop for an app that answers each call slowly.
+    /// Bounds on the search for windows on other Spaces (D17, D26, D33). The search runs only
+    /// for apps that really have a window on another Space, and stops once every one is
+    /// found. Element ids grow as an app creates elements, so a long-running Safari has
+    /// windows above 1000; each id costs about 40 microseconds, so 10,000 is about 0.4 s.
+    /// The time limit is a backstop for an app that answers each call slowly.
     static let otherSpacesBudget: TimeInterval = 1.0
-    static let maxElementID: UInt64 = 1000
+    static let maxElementID: UInt64 = 10_000
     /// Smaller windows are tab bars, popovers and other parts of a window.
     static let minimumWindowWidth = 100.0
     static let minimumWindowHeight = 50.0
