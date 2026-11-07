@@ -1,17 +1,21 @@
 # Gustave
 
-A tiny, offline macOS companion for [Hector](https://github.com/0xRD/hector). It does three
-things, each one switch in its settings:
+**The three macOS window and mouse fixes you install a heavy app for, in one tiny app that
+asks for a single permission and never goes online.**
 
-- **Window list on Dock hover.** Rest the pointer on a running app in the Dock to see its
-  windows, on every desktop, and raise, close, minimize or full-screen one.
-- **Option+Tab window switcher.** Windows-style: every window of every app, most recently
-  used first, across desktops. A quick press goes back to the previous window, even another
-  window of the same app.
-- **Scroll inversion per device.** Invert a wheel mouse, a trackpad, or both, independently.
+macOS makes you juggle windows and mice with half-measures. Gustave fixes that, quietly,
+from login:
+
+- **See an app's windows from the Dock.** Rest the pointer on a running app and pick the
+  window you want, on any desktop.
+- **Option+Tab between windows, not apps.** Windows-style: every window, most recently used
+  first. A quick press goes back to the last one.
+- **Scroll the way you like, per device.** Natural on the trackpad, classic on the wheel
+  mouse, at the same time.
 
 It needs Accessibility and nothing else: no Screen Recording, no Input Monitoring, no
-network, no dependencies, no auto-update.
+network, no dependencies, no auto-update. Each feature is one switch, and a switch that is
+off is uninstalled, not paused.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/settings-dark.png">
@@ -20,31 +24,7 @@ network, no dependencies, no auto-update.
 
 Status: **early, used daily by its author.** See [Known limitations](#known-limitations).
 
-## Privacy and private APIs
-
-Gustave holds the Accessibility permission, so it is built to be read in an afternoon:
-offline, no dependencies, every check in [`scripts/verify.sh`](scripts/verify.sh). Window
-titles and app names are only shown as plain text, never logged.
-
-Public macOS APIs cannot list or focus windows on other desktops, so Gustave uses a few
-private functions, the same ones DockDoor and AltTab rely on. Each is looked up at run time;
-if a macOS update removes one, Gustave still launches and that feature falls back to the
-current desktop. `verify.sh` fails the build if any other private name appears.
-
-| Function | Why |
-|---|---|
-| `_AXUIElementCreateWithRemoteToken`, `_AXUIElementGetWindow` | Reach windows on other desktops through Accessibility, and know their window ids |
-| `CGSMainConnectionID`, `CGSCopySpacesForWindows` | Tell real windows on other desktops from hidden helper windows |
-| `_SLPSSetFrontProcessWithOptions`, `SLPSPostEventRecordTo` | Bring one window forward on its own desktop, even when its app is already in front |
-| `CoreDockSetAutoHideEnabled` | Only to undo an older build's change to Dock auto-hide after a crash |
-
-They grant nothing beyond Accessibility. The reasoning for each is in
-[`docs/DECISIONS.md`](docs/DECISIONS.md) (D17, D25, D26) and the threat model in
-[`SECURITY.md`](SECURITY.md).
-
 ## Install
-
-With Homebrew:
 
 ```sh
 brew install --cask 0xrd/tap/gustave
@@ -52,7 +32,8 @@ brew install --cask 0xrd/tap/gustave
 
 Gustave is not notarized by Apple, so on first launch allow it in System Settings, Privacy &
 Security, Open Anyway. Then grant Accessibility when it asks. Releases are signed with the
-same certificate each time, so the permission carries over to updates.
+same certificate each time, so the permission carries over to updates. Prefer to build it
+yourself? See [From source](#from-source).
 
 ### From source
 
@@ -83,6 +64,57 @@ again from Finder or Spotlight to see its settings.
 
 **Option+Tab.** If DockDoor, AltTab or another switcher also uses Option+Tab, turn its
 shortcut off.
+
+## Why Gustave
+
+Gustave exists because the usual answers to these three itches are bigger than the itch.
+
+**A window list on Dock hover.** The Dock shows apps, not windows. With six Chrome windows
+open, clicking its icon gives you no way to say which one you mean. Apps such as DockDoor
+solve this with thumbnails, which means Screen Recording, the most invasive permission
+macOS has. Gustave lists window titles instead. Titles, state and the close, minimize and
+full-screen buttons all come from Accessibility, so the list is just as useful for picking a
+window, and nothing ever reads your screen.
+
+**Option+Tab between windows.** Command+Tab switches apps, so two windows of the same app are
+one stop and you reach the other with a detour. Windows' Alt+Tab switches
+windows, with the previous one a quick press away. Gustave does the same, ordered by last use
+like Command+Tab, across all your desktops, and a quick press toggles between your two
+latest windows even inside one app. It uses Option+Tab so Command+Tab keeps working as usual.
+
+**Scroll inversion per device.** macOS has one "natural scrolling" switch for both trackpad
+and mouse, so you cannot have a trackpad that follows your fingers and a wheel that scrolls
+the old way. The fix is usually a utility that reads input devices; Gustave only needs to
+know whether an event is continuous (trackpad) or notched (wheel), which is public and
+needs no extra permission. The event tap exists only while an inversion is on.
+
+**Why one small app.** All three features need Accessibility, which lets an app read and
+control other apps. That is a lot of trust to hand out, so Gustave is built to be read in
+an afternoon: offline, no dependencies, no timers or polling while idle, and a script
+(`scripts/verify.sh`) that fails the build if anything else sneaks in. The full reasoning,
+decision by decision, is in [`docs/DECISIONS.md`](docs/DECISIONS.md).
+
+## Privacy and private APIs
+
+Gustave holds the Accessibility permission, so it is built to be read in an afternoon:
+offline, no dependencies, every check in [`scripts/verify.sh`](scripts/verify.sh). Window
+titles and app names are only shown as plain text, never logged.
+
+Public macOS APIs cannot list or focus windows on other desktops, so Gustave uses a few
+private functions, the same ones DockDoor and AltTab rely on. Each is looked up at run time;
+if a macOS update removes one, Gustave still launches and that feature falls back to the
+current desktop. `verify.sh` fails the build if any other private name appears.
+
+| Function | Why |
+|---|---|
+| `_AXUIElementCreateWithRemoteToken`, `_AXUIElementGetWindow` | Reach windows on other desktops through Accessibility, and know their window ids |
+| `CGSMainConnectionID`, `CGSCopySpacesForWindows` | Tell real windows on other desktops from hidden helper windows |
+| `_SLPSSetFrontProcessWithOptions`, `SLPSPostEventRecordTo` | Bring one window forward on its own desktop, even when its app is already in front |
+| `CoreDockSetAutoHideEnabled` | Only to undo an older build's change to Dock auto-hide after a crash |
+
+They grant nothing beyond Accessibility. The reasoning for each is in
+[`docs/DECISIONS.md`](docs/DECISIONS.md) (D17, D25, D26) and the threat model in
+[`SECURITY.md`](SECURITY.md).
 
 ## Update
 
