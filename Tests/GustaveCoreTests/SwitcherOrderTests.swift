@@ -171,3 +171,39 @@ private func key(_ pid: Int32, _ id: UInt32) -> WindowKey { WindowKey(pid: pid, 
     #expect(SwitcherOrder.index(keeping: minimized, in: after) == 2)
     #expect(SwitcherOrder.index(keeping: key(9, 9), in: after) == nil)
 }
+
+@Test func replayingNoPressesChangesNothing() {
+    let a = key(1, 1), b = key(2, 2)
+    let result = SwitcherSelection.replay([], items: [a, b], focused: a, key: { $0 })
+    #expect(result.items == [a, b])
+    #expect(result.focused == a)
+    #expect(result.picked.isEmpty)
+}
+
+@Test func twoQuickPressesBeforeTheListToggleTwice() {
+    let a = key(1, 1), b = key(1, 2), c = key(2, 3)
+    let result = SwitcherSelection.replay([1, 1], items: [a, b, c], focused: a, key: { $0 })
+    #expect(result.picked == [b, a])
+    #expect(result.items == [a, b, c])
+    #expect(result.focused == a)
+}
+
+@Test func replayStartsFromTheFirstWindowWhenNothingHadFocus() {
+    let a = key(1, 1), b = key(1, 2)
+    let result = SwitcherSelection.replay([1], items: [a, b], focused: nil, key: { $0 })
+    #expect(result.picked == [a])
+    #expect(result.focused == a)
+}
+
+@Test func replayOnAnEmptyListPicksNothing() {
+    let result = SwitcherSelection.replay([1, 1], items: [WindowKey](), focused: nil, key: { $0 })
+    #expect(result.picked.isEmpty)
+    #expect(result.focused == nil)
+}
+
+@Test func replayMovesItemsByPositionEvenWithDuplicateKeys() {
+    let shared = key(1, 0)
+    let result = SwitcherSelection.replay([1], items: [shared, shared, key(2, 2)], focused: shared, key: { $0 })
+    #expect(result.items.count == 3)
+    #expect(result.picked == [shared])
+}

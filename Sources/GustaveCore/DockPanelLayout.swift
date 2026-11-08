@@ -9,7 +9,7 @@ public enum DockPanelLayout {
     /// The row at `distanceFromTop` points below the panel's top edge, if any.
     public static func rowIndex(atDistanceFromTop distanceFromTop: Double, rowCount: Int) -> Int? {
         let offset = distanceFromTop - padding - headerHeight - separatorHeight
-        guard offset >= 0, rowCount > 0 else { return nil }
+        guard offset.isFinite, offset >= 0, rowCount > 0 else { return nil }
         let index = Int(offset / rowHeight)
         return index < rowCount ? index : nil
     }

@@ -19,7 +19,9 @@ final class LaunchAtLogin: ObservableObject {
     /// Settings at any time.
     func refresh() {
         let status = SMAppService.mainApp.status
-        isEnabled = status == .enabled
+        // Registered but waiting for the user's approval still counts as on, so switching
+        // it off unregisters it.
+        isEnabled = status == .enabled || status == .requiresApproval
         needsApproval = status == .requiresApproval
     }
 

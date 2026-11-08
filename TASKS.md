@@ -106,8 +106,10 @@ Status: [ ] todo, [~] in progress, [x] done.
   never delays scrolling (D29).
 - [ ] M5.1 Cost measurements recorded in `docs/DECISIONS.md`: idle CPU, wakeups
   (`powermetrics`), hover cost (Instruments).
-- [ ] M5.2 Security review pass against `SECURITY.md`. Update the threat model with
+- [~] M5.2 Security review pass against `SECURITY.md`. Update the threat model with
   anything learned.
+  - Done (D34): code audit, fixes, signing key guidance in SECURITY.md, wider verify.sh.
+  - Open (manual, D34): the device checks listed at the end of D34.
 - [~] M5.3 Launch at login, silent start, final settings polish.
 - [x] M5.4 README update, release checklist, checksummed GitHub release, optional
   Homebrew tap cask (self-signed, build from source stays primary).

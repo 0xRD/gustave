@@ -69,3 +69,29 @@ public enum SwitcherSelection {
         return steps - 1
     }
 }
+
+extension SwitcherSelection {
+    /// Quick presses that were released before the list was built, applied in order as if
+    /// the list had been there: each picks a window by its steps and moves it to the front,
+    /// where the next press starts from. Returns the reordered items and the window that has
+    /// focus afterwards. Items move by position, so two items with the same key are fine.
+    public static func replay<Item>(
+        _ presses: [Int],
+        items: [Item],
+        focused: WindowKey?,
+        key: (Item) -> WindowKey
+    ) -> (items: [Item], focused: WindowKey?, picked: [Item]) {
+        var items = items
+        var focused = focused
+        var picked: [Item] = []
+        for press in presses {
+            let adjusted = steps(press, focused: focused, first: items.first.map(key))
+            guard let chosen = index(steps: adjusted, count: items.count) else { break }
+            let item = items.remove(at: chosen)
+            items.insert(item, at: 0)
+            focused = key(item)
+            picked.append(item)
+        }
+        return (items, focused, picked)
+    }
+}
