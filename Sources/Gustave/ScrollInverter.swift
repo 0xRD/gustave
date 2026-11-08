@@ -89,6 +89,8 @@ final class ScrollInverter: ObservableObject {
             CGEvent.tapEnable(tap: port, enable: true)
         } else {
             remove()
+            // Shown until the permission notification arrives and settles the state.
+            isUnavailable = true
         }
     }
 }

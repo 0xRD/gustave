@@ -48,8 +48,8 @@ final class DockPanelController {
     /// hover is skipped instead of run.
     private let currentGeneration = GenerationToken()
     /// Present only while the panel is visible, to close it the moment it is left behind.
-    private var dismissMonitor: Any?
-    private var spaceObserver: NSObjectProtocol?
+    private var dismissMonitors: [Any] = []
+    private var dismissObservers: [(NotificationCenter, NSObjectProtocol)] = []
 
     init() {
         actions = DockPanelActions(
@@ -165,9 +165,11 @@ final class DockPanelController {
         let appIsHidden = hover.app.isHidden
         AXQueues.windows.async { [weak self] in
             guard current.matches(token) else { return }
+            // Read once per hover and shared: it copies every window on the system.
+            let server = WindowServerList.current()
             // Windows seen before on other Spaces come with the first list (D27).
-            let windows = AppWindows.list(pid: pid).map { listed in
-                listed + AppWindows.remembered(pid: pid, known: listed, appIsHidden: appIsHidden)
+            let windows = AppWindows.list(pid: pid, server: server).map { listed in
+                listed + AppWindows.remembered(pid: pid, known: listed, appIsHidden: appIsHidden, server: server)
             }
             DispatchQueue.main.async {
                 MainActor.assumeIsolated {
@@ -188,7 +190,11 @@ final class DockPanelController {
             guard let windows else { return }
             AXQueues.otherSpaces.async {
                 guard current.matches(token) else { return }
-                let others = AppWindows.otherSpaces(pid: pid, known: windows, appIsHidden: appIsHidden)
+                // Stops as soon as another icon is hovered, so that app's search is not
+                // queued behind this one.
+                let others = AppWindows.otherSpaces(
+                    pid: pid, known: windows, appIsHidden: appIsHidden, server: server,
+                    shouldStop: { !current.matches(token) })
                 DispatchQueue.main.async {
                     MainActor.assumeIsolated {
                         guard let self, token == self.generation else { return }
@@ -325,6 +331,8 @@ final class DockPanelController {
     // MARK: Closing
 
     private func fadeOut() {
+        // A closed panel's frame must never count as inside.
+        requestedFrame = nil
         guard isPresented else { return }
         isPresented = false
         NSAnimationContext.runAnimationGroup { context in
@@ -341,10 +349,9 @@ final class DockPanelController {
     }
 
     private func installDismissal() {
-        guard dismissMonitor == nil else { return }
-        dismissMonitor = NSEvent.addGlobalMonitorForEvents(
-            matching: [.mouseMoved, .leftMouseDown, .rightMouseDown, .otherMouseDown]
-        ) { [weak self] event in
+        guard dismissMonitors.isEmpty else { return }
+        let clicks: NSEvent.EventTypeMask = [.leftMouseDown, .rightMouseDown, .otherMouseDown]
+        if let global = NSEvent.addGlobalMonitorForEvents(matching: clicks.union(.mouseMoved), handler: { [weak self] event in
             MainActor.assumeIsolated {
                 // Global monitors only see events for other apps: a click is never on the panel.
                 if event.type == .mouseMoved {
@@ -353,30 +360,61 @@ final class DockPanelController {
                     self?.hide()
                 }
             }
+        }) {
+            dismissMonitors.append(global)
         }
-        spaceObserver = NSWorkspace.shared.notificationCenter.addObserver(
-            forName: NSWorkspace.activeSpaceDidChangeNotification, object: nil, queue: .main
-        ) { [weak self] _ in
-            MainActor.assumeIsolated { self?.hide() }
+        // Clicks in Gustave's own windows, such as the settings window, close it too.
+        if let local = NSEvent.addLocalMonitorForEvents(matching: clicks, handler: { [weak self] event in
+            MainActor.assumeIsolated {
+                if let self, event.window !== self.panel {
+                    self.hide()
+                }
+            }
+            return event
+        }) {
+            dismissMonitors.append(local)
         }
+        let workspace = NSWorkspace.shared.notificationCenter
+        let closers: [(NotificationCenter, Notification.Name)] = [
+            (workspace, NSWorkspace.activeSpaceDidChangeNotification),
+            (workspace, NSWorkspace.willSleepNotification),
+            (NotificationCenter.default, NSApplication.didChangeScreenParametersNotification),
+        ]
+        dismissObservers = closers.map { center, name in
+            (center, center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { self?.hide() }
+            })
+        }
+        // The rows of an app that quit lead nowhere.
+        dismissObservers.append((workspace, workspace.addObserver(
+            forName: NSWorkspace.didTerminateApplicationNotification, object: nil, queue: .main
+        ) { [weak self] note in
+            let pid = (note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication)?.processIdentifier
+            MainActor.assumeIsolated {
+                if let self, let pid, pid == self.content.app?.processIdentifier {
+                    self.hide()
+                }
+            }
+        }))
     }
 
     private func removeDismissal() {
-        if let dismissMonitor {
-            NSEvent.removeMonitor(dismissMonitor)
+        for monitor in dismissMonitors {
+            NSEvent.removeMonitor(monitor)
         }
-        if let spaceObserver {
-            NSWorkspace.shared.notificationCenter.removeObserver(spaceObserver)
+        for (center, token) in dismissObservers {
+            center.removeObserver(token)
         }
-        dismissMonitor = nil
-        spaceObserver = nil
+        dismissMonitors = []
+        dismissObservers = []
     }
 
     /// On the panel, on the icon, or in the gap between them, so a slow move from the icon
     /// to the panel does not close it on the way.
     private func isPointerInside() -> Bool {
         let pointer = NSEvent.mouseLocation
-        let panelFrame = requestedFrame ?? panel.frame
+        // While closed, only the icon counts: the window keeps its old frame after closing.
+        let panelFrame = isPresented ? (requestedFrame ?? panel.frame) : .null
         guard let icon = hover?.iconFrame else { return panelFrame.contains(pointer) }
         let slack = Self.iconSlack
         let iconFrame = CGRect(x: icon.x, y: icon.y, width: icon.width, height: icon.height)

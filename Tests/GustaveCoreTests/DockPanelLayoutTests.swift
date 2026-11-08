@@ -22,3 +22,9 @@ private let firstRowTop = DockPanelLayout.padding + DockPanelLayout.headerHeight
 @Test func emptyListHasNoRow() {
     #expect(DockPanelLayout.rowIndex(atDistanceFromTop: firstRowTop, rowCount: 0) == nil)
 }
+
+@Test func nonFiniteDistancesHitNoRow() {
+    #expect(DockPanelLayout.rowIndex(atDistanceFromTop: .infinity, rowCount: 3) == nil)
+    #expect(DockPanelLayout.rowIndex(atDistanceFromTop: -.infinity, rowCount: 3) == nil)
+    #expect(DockPanelLayout.rowIndex(atDistanceFromTop: .nan, rowCount: 3) == nil)
+}

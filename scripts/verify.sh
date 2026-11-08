@@ -84,6 +84,26 @@ else
     fail "networking symbols: $found"
 fi
 
+# Other ways to reach the network or run code without a networking symbol: launching a
+# process (such as curl), loading a library, or looking up a class or function by name.
+banned_indirect='^_(posix_spawnp?|execv[ep]?|execl[ep]?|fork|vfork|system|popen|dlopen)$'
+banned_indirect+='|NSTask|NSClassFromString|NSSelectorFromString|^_objc_getClass$|^_objc_lookUpClass$'
+found=$(nm -u "$binary" | grep -E "$banned_indirect")
+if [[ -z "$found" ]]; then
+    pass "no process launching, library loading or lookups by name"
+else
+    fail "indirect execution symbols: $found"
+fi
+
+# Opening a URL in the browser could carry data out with no socket in Gustave. The only
+# URL opened is the constant System Settings one, so every open call must name it.
+opens=$(grep -rnE '\.open\(|openURL|openApplication' Sources | grep -v 'AccessibilityPermission.swift')
+if [[ -z "$opens" ]]; then
+    pass "no URL opened beyond System Settings"
+else
+    fail "URL opening in source: $opens"
+fi
+
 # Private APIs are never linked, and only the ones approved in docs/DECISIONS.md may be
 # named for lookup at run time.
 linked_private=$(nm -u "$binary" | grep -E '^(__AX|__?CGS[A-Z]|__?SLS[A-Z]|__?SLPS[A-Z]|__?CoreDock)')

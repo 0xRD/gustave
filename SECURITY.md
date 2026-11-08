@@ -49,6 +49,19 @@ isolated enough that you can read and verify all of it.
 | Tampered binary on disk | Hardened runtime and signature. `codesign --verify --strict` is part of `scripts/verify.sh`. |
 | Compromise of Gustave through Hector, or the reverse | Separate processes, separate bundles, no shared IPC. |
 
+## The signing key
+
+The grant follows the signing certificate, so whoever can sign with the key can build a
+binary that inherits Gustave's Accessibility grant without a prompt (D10). `make-cert.sh`
+imports the key as non-extractable and lets only `codesign` use it without asking, but any
+process running as you can run `codesign`. On a Mac where you only run Gustave, such as a work
+Mac:
+- Install the release (Homebrew cask or the checksummed archive). No key ends up on that Mac.
+- Or build from source, then delete the "Gustave Local Signing" identity from the login
+  keychain, or keep it in a separate keychain that stays locked except while building
+  (`GUSTAVE_KEYCHAIN`). The grant depends on the certificate hash in the signature, not on the
+  key being present; the next rebuild needs a new key and a new grant.
+
 ## Residual risk
 
 Accessibility is inherently broad. If Gustave itself is compromised, an attacker can
@@ -60,7 +73,8 @@ to be built by its user from source.
 
 - `swift test` passes.
 - `scripts/verify.sh` passes: valid signature, hardened runtime, no entitlements, only
-  system libraries, no networking symbols, no open internet sockets while running.
+  system libraries, no networking symbols, no process launching, library loading or lookups
+  by name, no URL opened beyond System Settings, no open internet sockets while running.
 - Hector shows no connections for Gustave.
 - Accessibility grant survives two consecutive `scripts/build-app.sh` runs.
 - Idle CPU is zero and wakeups are near zero (`top -pid` or `powermetrics`; recorded measurements are TASKS.md, M5.1).

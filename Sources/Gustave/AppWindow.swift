@@ -20,6 +20,9 @@ enum AppWindows {
 
     /// Apps with more windows than this are cut short: the list is for picking, not auditing.
     static let maxWindows = 64
+    /// Time for reading one app's windows on this Space, or its remembered ones. A healthy
+    /// app answers in milliseconds; one that answers each read slowly gets a partial list.
+    static let listBudget: TimeInterval = 0.6
     /// Bounds on the search for windows on other Spaces (D17, D26, D33). The search runs only
     /// for apps that really have a window on another Space, and stops once every one is
     /// found. Element ids grow as an app creates elements, so a long-running Safari has
@@ -47,9 +50,20 @@ enum AppWindows {
         guard error == .success, let windows = value as? [AXUIElement] else { return [] }
 
         let layers = layers((server ?? .current()).windows(of: pid))
+        // Each read can take just under the timeout: an app answering slowly, not frozen,
+        // would otherwise hold the queue for one timeout per window.
+        let deadline = Date().addingTimeInterval(listBudget)
         var result: [AppWindow] = []
         var skipped: [String] = []
         for raw in windows.prefix(maxWindows) {
+            guard Date() < deadline else {
+                skipped.append("time budget")
+                break
+            }
+            guard CFGetTypeID(raw) == AXUIElementGetTypeID() else {
+                skipped.append("not an element")
+                continue
+            }
             let window = AXElement(raw)
             let read = window.readValues(attributes)
             // Only a timeout means the app is not answering. Any other failure is this one
@@ -183,7 +197,9 @@ enum AppWindows {
         let layers = layers(server)
         var found: [AppWindow] = []
         var remaining = missing
+        let deadline = Date().addingTimeInterval(listBudget)
         for (key, element) in SeenWindowElements.windows(of: pid) where remaining.contains(key.windowID) {
+            guard Date() < deadline else { return (found, remaining, true) }
             let read = element.readValues(attributes)
             if read.error == .cannotComplete { return (found, remaining, true) }
             guard let values = read.values else {
@@ -283,14 +299,22 @@ enum AppWindows {
     static func raise(_ window: AppWindow) {
         // Restoring is asynchronous: the window server call would run on a window still
         // ordered out. A restored window comes back where the user is, so public calls do.
-        if window.isMinimized {
-            window.element.set(kAXMinimizedAttribute, kCFBooleanFalse)
+        // An app that does not answer one call will not answer the next: stop at the first
+        // timeout, so a frozen app holds the queue for one timeout, not four.
+        if window.isMinimized,
+           window.element.set(kAXMinimizedAttribute, kCFBooleanFalse) == .cannotComplete {
+            log.debug("pid \(window.pid): raise, timed out")
+            return
         }
         let focused = window.isMinimized
             ? false
             : window.windowID.map { PrivateWindowServer.focus(pid: window.pid, windowID: $0) } ?? false
-        window.element.perform(kAXRaiseAction)
-        window.element.set(kAXMainAttribute, kCFBooleanTrue)
+        guard window.element.perform(kAXRaiseAction) != .cannotComplete,
+              window.element.set(kAXMainAttribute, kCFBooleanTrue) != .cannotComplete
+        else {
+            log.debug("pid \(window.pid): raise, timed out, window server focus \(focused)")
+            return
+        }
         if !focused {
             // Setting frontmost does not depend on the app agreeing to be activated.
             AXElement.application(window.pid).set(kAXFrontmostAttribute, kCFBooleanTrue)
@@ -299,7 +323,14 @@ enum AppWindows {
     }
 
     static func close(_ window: AppWindow) {
-        let button = window.element.element(kAXCloseButtonAttribute)
+        let (error, value) = window.element.copy(kAXCloseButtonAttribute)
+        guard error != .cannotComplete else {
+            log.debug("pid \(window.pid): close, timed out")
+            return
+        }
+        let button = value.flatMap { value in
+            CFGetTypeID(value) == AXUIElementGetTypeID() ? AXElement(value as! AXUIElement) : nil
+        }
         let pressed = button?.perform(kAXPressAction)
         log.debug("pid \(window.pid): close, button \(button != nil), press \(pressed?.rawValue ?? 0)")
     }

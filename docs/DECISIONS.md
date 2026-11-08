@@ -433,6 +433,51 @@ To check on device: after sleep and wake, and after plugging or unplugging a dis
 hovering still shows the list without restarting Gustave; the search's log line shows the
 time taken past id 1000.
 
+### D34. Security and bug audit before installing on a work Mac
+Decided 2026-11-08 at the user's request ("make sure that the app is bug-free and safe before
+I install gustave on my work computer"). Three reviews of the whole code base (security, the
+Dock list, the switcher with scrolling and settings), each finding checked against the code.
+No hard rule was broken: no network code, no unapproved private API, no entitlement, no
+dependency, no untrusted text interpreted. Fixed:
+- Switcher: a second quick press while the first press's list was still being built added
+  steps to the first one, so two quick presses jumped to the third window. Each press is now
+  replayed in order once the list arrives (`SwitcherSelection.replay`, tested).
+- Switcher: on an empty Space, windows found only on other Spaces never showed. The list now
+  takes them and shows once the delay has passed.
+- Switcher: a missed Option release (secure input on) after the list showed left it up until
+  Option was next used, which then switched. Option is checked every 0.1 s while a session is
+  open, and only then; nothing runs in steady state (hard rule 7).
+- Switcher: windows joining a list already on screen are added at the end, so it never
+  reorders while open (SPEC F2). Option+Shift+Escape cancels too.
+- Switcher: a refused shortcut left the other one registered and focus tracking running for
+  a feature shown as unavailable. Both shortcuts or none, retried on the next settings or
+  permission change. A failed Carbon handler installation now refuses the shortcut instead of
+  registering one whose presses are dropped.
+- Dock list: the other-Spaces search can now be stopped when another icon is hovered, and the
+  window server list is read once per hover, not three times.
+- Dock list: a closed panel's old frame still counted as "inside", which could open a panel
+  with the pointer already away. Window actions stop at the first timeout, so a frozen app
+  holds the queue for one timeout, not four. Listing an app's windows has a 0.6 s budget, so
+  an app answering each read slowly cannot hold the queue for one timeout per window.
+- Dock list: the panel also closes on clicks in Gustave's own windows, when its app quits,
+  before sleep and on a display change. Subscriptions replaced before they arrived are removed
+  from the Dock. Attach retries back off (0.5 s to 4 s). Stale selection reads are skipped. An
+  icon whose centre is on no screen uses the pointer's screen (to check with auto-hide).
+- Scroll: a tap removed because the permission went away shows as unavailable until the
+  permission notification settles it. Launch at login waiting for approval shows as on, so it
+  can be turned off, and the switch is read again when the settings window becomes key.
+- `scripts/verify.sh` also fails on process launching, library loading, lookups by name, and
+  any URL opened other than the System Settings one. `make-cert.sh` imports the key as
+  non-extractable.
+Not changed, for the user to decide: the signing key's keychain access lets any process
+running as the user sign with it through `codesign` without a prompt, and so produce a binary
+that inherits the Accessibility grant (D10 names this). SECURITY.md now says how to remove
+that on a Mac that only runs Gustave. Known and still open: the scroll tap on the main run
+loop (D29, M5.0).
+To check on device: two quick Option+Tab presses in a row toggle twice; with Terminal's Secure
+Keyboard Entry on, releasing Option closes the list; clicking the settings window closes the
+Dock panel; a Dock panel closes when its app quits.
+
 ## Verified on device
 
 - 2026-11-01, macOS 26.6: codesign refuses an untrusted self-signed identity ("no identity

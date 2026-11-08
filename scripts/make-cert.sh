@@ -39,8 +39,10 @@ password=$(/usr/bin/openssl rand -hex 32)
 /usr/bin/openssl pkcs12 -export -inkey "$work/key.pem" -in "$work/cert.pem" \
     -name "$name" -out "$work/identity.p12" -passout "pass:$password"
 
-# Only codesign may use the private key without asking.
-security import "$work/identity.p12" -k "$keychain" -P "$password" -T /usr/bin/codesign
+# Only codesign may use the private key without asking, and the key can never be exported
+# from the keychain. Any process running as you can still ask codesign to sign with it: see
+# SECURITY.md for locking or deleting the key on a machine that does not build Gustave.
+security import "$work/identity.p12" -k "$keychain" -P "$password" -T /usr/bin/codesign -x
 
 if [[ -z "${GUSTAVE_SKIP_TRUST:-}" ]]; then
     security add-trusted-cert -p codeSign -k "$keychain" "$work/cert.pem"

@@ -46,6 +46,11 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         window.makeKeyAndOrderFront(nil)
     }
 
+    /// The user may have changed the login item in System Settings while the window was open.
+    func windowDidBecomeKey(_ notification: Notification) {
+        launchAtLogin.refresh()
+    }
+
     func windowWillClose(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
     }

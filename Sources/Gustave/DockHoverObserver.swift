@@ -33,7 +33,9 @@ struct DockHover {
 final class DockHoverObserver {
     private let onChange: (DockHoverEvent) -> Void
 
-    /// A new Dock answers Accessibility only after a moment.
+    /// A new Dock answers Accessibility only after a moment, longer at login. The delay
+    /// doubles on each try (0.5 s to 4 s, about 7.5 s in all), then nothing until the next
+    /// change: a few events, never polling.
     private static let attachRetries = 5
     private static let attachRetryDelay: TimeInterval = 0.5
     /// After a wake or a display change the Dock may rebuild its list a moment later.
@@ -48,6 +50,9 @@ final class DockHoverObserver {
     private var pendingResubscribe: DispatchWorkItem?
     private var current: DockHoverEvent = .outside
     private var generation = 0
+    /// The generation, readable from the Dock queue, so selection reads already replaced by
+    /// a newer one are skipped during a fast sweep along the Dock.
+    private let currentGeneration = GenerationToken()
 
     init(onChange: @escaping (DockHoverEvent) -> Void) {
         self.onChange = onChange
@@ -141,7 +146,13 @@ final class DockHoverObserver {
             let subscription = DockProbe.subscribe(dockPID: dockPID, callback: dockNotification, refcon: refcon)
             DispatchQueue.main.async {
                 MainActor.assumeIsolated {
-                    guard let self, token == self.generation, self.isRunning else { return }
+                    guard let self, token == self.generation, self.isRunning else {
+                        // Replaced or stopped meanwhile: leave nothing registered in the Dock.
+                        if let subscription {
+                            AXQueues.dock.async { DockProbe.unsubscribe(subscription) }
+                        }
+                        return
+                    }
                     guard let subscription else {
                         self.retryAttach(retriesLeft: retriesLeft - 1, token: token)
                         return
@@ -158,7 +169,9 @@ final class DockHoverObserver {
     /// A few spaced tries after a Dock start, then nothing until the next change: no polling.
     private func retryAttach(retriesLeft: Int, token: Int) {
         guard retriesLeft > 0 else { return }
-        DispatchQueue.main.asyncAfter(deadline: .now() + Self.attachRetryDelay) { [weak self] in
+        let attempt = Self.attachRetries - 1 - retriesLeft
+        let delay = Self.attachRetryDelay * Double(1 << max(attempt, 0))
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
             MainActor.assumeIsolated {
                 guard let self, self.isRunning, token == self.generation else { return }
                 self.attach(retriesLeft: retriesLeft)
@@ -167,7 +180,7 @@ final class DockHoverObserver {
     }
 
     private func detach() {
-        generation += 1
+        bumpGeneration()
         if let observer {
             CFRunLoopRemoveSource(CFRunLoopGetMain(), AXObserverGetRunLoopSource(observer), .commonModes)
             // Unsubscribing is a call into the Dock: off the main thread, like every other.
@@ -182,10 +195,12 @@ final class DockHoverObserver {
 
     fileprivate func selectionChanged() {
         guard let list, let primary = NSScreen.screens.first else { return }
-        generation += 1
+        bumpGeneration()
         let token = generation
+        let current = currentGeneration
         let primaryHeight = primary.frame.height
         AXQueues.dock.async { [weak self] in
+            guard current.matches(token) else { return }
             let selection = DockProbe.selection(in: list)
             DispatchQueue.main.async {
                 MainActor.assumeIsolated {
@@ -212,7 +227,12 @@ final class DockHoverObserver {
 
         let iconFrame = ScreenCoordinates.flipped(item.frame, primaryScreenHeight: primaryHeight)
         let centre = Point(x: iconFrame.midX, y: iconFrame.midY)
-        guard let screen = NSScreen.screens.first(where: { Rect($0.frame).contains(centre) }) else { return nil }
+        // An icon still sliding in with an auto-hiding Dock can have its centre off every
+        // screen for a moment: the pointer's screen is the Dock's then.
+        let pointer = NSEvent.mouseLocation
+        guard let screen = NSScreen.screens.first(where: { Rect($0.frame).contains(centre) })
+            ?? NSScreen.screens.first(where: { $0.frame.contains(pointer) })
+        else { return nil }
 
         let frame = Rect(screen.frame)
         let visible = Rect(screen.visibleFrame)
@@ -223,6 +243,11 @@ final class DockHoverObserver {
         // never over the menu bar.
         let bounds = Rect(x: frame.x, y: frame.y, width: frame.width, height: visible.maxY - frame.y)
         return DockHover(app: app, iconFrame: iconFrame, edge: edge, screenFrame: bounds)
+    }
+
+    private func bumpGeneration() {
+        generation += 1
+        currentGeneration.set(generation)
     }
 
     private func report(_ event: DockHoverEvent) {

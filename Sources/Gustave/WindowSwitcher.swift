@@ -18,11 +18,16 @@ final class WindowSwitcher: ObservableObject {
     /// Long enough that a quick press never flashes the list.
     private static let showDelay: TimeInterval = 0.12
     private static let fadeDuration: TimeInterval = 0.1
+    /// How often Option is checked while a session is open, in case its release goes unseen.
+    /// Only while a session is open: nothing runs in steady state.
+    private static let releaseCheckInterval: TimeInterval = 0.1
 
     private struct Session {
         var steps: Int
         /// The window that had focus when the session began, nil for none.
-        let focused: WindowKey?
+        var focused: WindowKey?
+        /// Quick presses released before the list was built, each its own switch, in order.
+        var earlierPresses: [Int] = []
         let cancellation = SwitcherWindows.Cancellation()
         var windows: [AppWindow]?
         var isCommitted = false
@@ -33,7 +38,8 @@ final class WindowSwitcher: ObservableObject {
     private let hotKeys = HotKeyCenter()
     private let focus = FocusTracker()
     private var shortcutIDs: [UInt32] = []
-    private var escapeID: UInt32?
+    private var escapeIDs: [UInt32] = []
+    private var releaseCheck: Timer?
     private var flagMonitors: [Any] = []
     private var session: Session?
     private var generation = 0
@@ -51,25 +57,28 @@ final class WindowSwitcher: ObservableObject {
         panel.contentView = container
     }
 
+    /// A refused shortcut leaves the feature off, with nothing registered or observed, and
+    /// it is tried again on the next settings or permission change.
     func setEnabled(_ enabled: Bool) {
+        if !enabled {
+            isUnavailable = false
+        }
         guard enabled != isEnabled else { return }
-        isEnabled = enabled
         if enabled {
-            register()
+            guard register() else { return }
+            isEnabled = true
             let own = ProcessInfo.processInfo.processIdentifier
             focus.start(seed: SwitcherWindows.onScreenOrder(excluding: own))
         } else {
+            isEnabled = false
             end()
             focus.stop()
-            for id in shortcutIDs {
-                hotKeys.unregister(id)
-            }
-            shortcutIDs = []
-            isUnavailable = false
+            unregisterShortcuts()
         }
     }
 
-    private func register() {
+    /// Both shortcuts or none.
+    private func register() -> Bool {
         let forward = hotKeys.register(keyCode: kVK_Tab, modifiers: optionKey) { [weak self] event in
             self?.shortcut(event, step: 1)
         }
@@ -77,8 +86,21 @@ final class WindowSwitcher: ObservableObject {
             self?.shortcut(event, step: -1)
         }
         shortcutIDs = [forward, backward].compactMap { $0 }
-        isUnavailable = forward == nil
         Self.log.debug("shortcuts registered: forward \(forward != nil), backward \(backward != nil)")
+        guard forward != nil, backward != nil else {
+            unregisterShortcuts()
+            isUnavailable = true
+            return false
+        }
+        isUnavailable = false
+        return true
+    }
+
+    private func unregisterShortcuts() {
+        for id in shortcutIDs {
+            hotKeys.unregister(id)
+        }
+        shortcutIDs = []
     }
 
     private func shortcut(_ event: HotKeyCenter.Event, step: Int) {
@@ -86,6 +108,14 @@ final class WindowSwitcher: ObservableObject {
         case .pressed:
             if session == nil {
                 begin(steps: step)
+            } else if session?.isCommitted == true {
+                // The previous quick press is still waiting for the list: this is a new
+                // press, not more steps of that one.
+                if let earlier = session?.steps {
+                    session?.earlierPresses.append(earlier)
+                }
+                session?.steps = step
+                session?.isCommitted = false
             } else {
                 session?.steps += step
                 render()
@@ -170,15 +200,25 @@ final class WindowSwitcher: ObservableObject {
         Int(Date().timeIntervalSince(start) * 1000)
     }
 
-    /// Windows from other Spaces joined an open list: the selection stays on its window.
+    /// Windows from other Spaces joined the list. On screen, the list never reorders: they
+    /// are added at the end and the selection stays where it is. A list that was empty, as
+    /// on an empty Space, takes them as they come and shows once the delay has passed.
     private func moreWindowsArrived(_ windows: [AppWindow]) {
-        guard let session, let old = session.windows,
-              let selected = SwitcherSelection.index(steps: session.steps, count: old.count)
-        else { return }
-        let key = Self.key(old[selected])
-        let index = SwitcherOrder.index(keeping: key, in: windows.map(Self.key)) ?? selected
-        self.session?.steps = index
-        self.session?.windows = windows
+        guard let session, let old = session.windows else { return }
+        guard !old.isEmpty else {
+            windowsArrived(windows)
+            return
+        }
+        if panel.isVisible {
+            let known = Set(old.map(Self.key))
+            self.session?.windows = old + windows.filter { !known.contains(Self.key($0)) }
+        } else {
+            if let selected = SwitcherSelection.index(steps: session.steps, count: old.count) {
+                let key = Self.key(old[selected])
+                self.session?.steps = SwitcherOrder.index(keeping: key, in: windows.map(Self.key)) ?? selected
+            }
+            self.session?.windows = windows
+        }
         render()
     }
 
@@ -187,7 +227,21 @@ final class WindowSwitcher: ObservableObject {
     }
 
     private func windowsArrived(_ windows: [AppWindow]) {
-        guard let session else { return }
+        guard var session else { return }
+        var windows = windows
+        if !session.earlierPresses.isEmpty {
+            let replayed = SwitcherSelection.replay(
+                session.earlierPresses, items: windows, focused: session.focused, key: Self.key)
+            windows = replayed.items
+            session.focused = replayed.focused
+            session.earlierPresses = []
+            for window in replayed.picked {
+                if let windowID = window.windowID {
+                    focus.touch(WindowKey(pid: window.pid, windowID: windowID))
+                }
+            }
+            self.session = session
+        }
         self.session?.windows = windows
         self.session?.steps = SwitcherSelection.steps(
             session.steps, focused: session.focused, first: windows.first.map(Self.key))
@@ -218,15 +272,26 @@ final class WindowSwitcher: ObservableObject {
         }) {
             flagMonitors.append(local)
         }
-        escapeID = hotKeys.register(keyCode: kVK_Escape, modifiers: optionKey) { [weak self] event in
-            if event == .pressed {
-                self?.end()
+        // Hot keys match modifiers exactly: Escape also cancels while Shift is held.
+        escapeIDs = [optionKey, optionKey | shiftKey].compactMap { modifiers in
+            hotKeys.register(keyCode: kVK_Escape, modifiers: modifiers) { [weak self] event in
+                if event == .pressed {
+                    self?.end()
+                }
             }
         }
+        // Option's release goes unseen while another app has secure input on. Checked on a
+        // short timer for the life of the session only, so a missed release never leaves
+        // the list up or switches later, when Option is next used for something else.
+        let check = Timer(timeInterval: Self.releaseCheckInterval, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.commitIfOptionReleased() }
+        }
+        RunLoop.main.add(check, forMode: .common)
+        releaseCheck = check
     }
 
     private func commitIfOptionReleased() {
-        if session != nil, !NSEvent.modifierFlags.contains(.option) {
+        if let session, !session.isCommitted, !NSEvent.modifierFlags.contains(.option) {
             commit()
         }
     }
@@ -269,10 +334,12 @@ final class WindowSwitcher: ObservableObject {
             NSEvent.removeMonitor(monitor)
         }
         flagMonitors = []
-        if let escapeID {
-            hotKeys.unregister(escapeID)
+        for id in escapeIDs {
+            hotKeys.unregister(id)
         }
-        escapeID = nil
+        escapeIDs = []
+        releaseCheck?.invalidate()
+        releaseCheck = nil
         hidePanel()
     }
 

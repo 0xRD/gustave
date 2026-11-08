@@ -18,7 +18,8 @@ final class HotKeyCenter {
     /// Returns an id for `unregister`, or nil when the system refused the shortcut, for
     /// example because another app holds it.
     func register(keyCode: Int, modifiers: Int, action: @escaping (Event) -> Void) -> UInt32? {
-        installHandlerIfNeeded()
+        // Without the handler the shortcut would exist system-wide with its presses dropped.
+        guard installHandlerIfNeeded() else { return nil }
         let id = nextID
         nextID += 1
         var ref: EventHotKeyRef?
@@ -50,15 +51,20 @@ final class HotKeyCenter {
         hotKeys[id]?.action(kind == UInt32(kEventHotKeyPressed) ? .pressed : .released)
     }
 
-    private func installHandlerIfNeeded() {
-        guard handlerRef == nil else { return }
+    private func installHandlerIfNeeded() -> Bool {
+        guard handlerRef == nil else { return true }
         var types = [
             EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed)),
             EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyReleased)),
         ]
-        InstallEventHandler(
+        let status = InstallEventHandler(
             GetApplicationEventTarget(), hotKeyHandler, types.count, &types,
             Unmanaged.passUnretained(self).toOpaque(), &handlerRef)
+        guard status == noErr, handlerRef != nil else {
+            handlerRef = nil
+            return false
+        }
+        return true
     }
 }
 
