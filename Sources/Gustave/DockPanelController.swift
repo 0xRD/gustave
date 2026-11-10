@@ -86,6 +86,15 @@ final class DockPanelController {
     }
 
     private func dockPointerChanged(_ event: DockHoverEvent) {
+        // The Dock can report again the icon already being handled, for example when the
+        // pointer comes back from the panel. Compared with what the panel is doing, not
+        // with the last report: after the panel closed for another reason, such as a click
+        // or a Dock that hid, the same icon must open it again.
+        if case .app(let new) = event, let hover, isPresented || pendingShow != nil,
+           new.app.processIdentifier == hover.app.processIdentifier, new.iconFrame == hover.iconFrame {
+            cancelClose()
+            return
+        }
         cancelShow()
         switch DockPanelRule.response(to: event.pointer) {
         case .closeAfterGrace:

@@ -1,6 +1,7 @@
 import AppKit
 import ApplicationServices
 import GustaveCore
+import os
 
 /// A Dock app icon.
 struct DockItem: Equatable, Sendable {
@@ -12,6 +13,8 @@ struct DockItem: Equatable, Sendable {
 /// Calls into the Dock process. Run on `AXQueues.dock` only.
 enum DockProbe {
     static let dockBundleIdentifier = "com.apple.dock"
+
+    private static let log = Logger(subsystem: "io.github.0xrd.gustave", category: "dock")
 
     struct Subscription: @unchecked Sendable {
         let observer: AXObserver
@@ -32,10 +35,7 @@ enum DockProbe {
         callback: AXObserverCallback,
         refcon: UnsafeMutableRawPointer
     ) -> Subscription? {
-        let dock = AXElement.application(dockPID)
-        guard let children = dock.value(kAXChildrenAttribute) as? [AXUIElement],
-              let list = children.map(AXElement.init).first(where: { $0.string(kAXRoleAttribute) == kAXListRole })
-        else { return nil }
+        guard case .found(let list) = currentList(dockPID: dockPID) else { return nil }
 
         var observer: AXObserver?
         guard AXObserverCreate(dockPID, callback, &observer) == .success, let observer,
@@ -53,17 +53,61 @@ enum DockProbe {
         }
     }
 
+    private enum CurrentList {
+        case found(AXElement)
+        /// The Dock answered, and has no list.
+        case missing
+        case noAnswer
+    }
+
+    /// The list the Dock shows now.
+    private static func currentList(dockPID: pid_t) -> CurrentList {
+        guard let children = AXElement.application(dockPID).value(kAXChildrenAttribute) as? [AXUIElement]
+        else { return .noAnswer }
+        guard let list = children.map(AXElement.init).first(where: { $0.string(kAXRoleAttribute) == kAXListRole })
+        else { return .missing }
+        return .found(list)
+    }
+
+    /// Whether the subscription is on a list the Dock no longer shows (D35): the checks
+    /// DockDoor makes every 5 s, made here only when the caller has an event to go on.
+    static func isStale(_ list: AXElement, dockPID: pid_t) -> Bool {
+        let subscribed: DockListAnswer
+        switch list.copy(kAXRoleAttribute).0 {
+        case .success: subscribed = .answered
+        case .invalidUIElement: subscribed = .gone
+        default: subscribed = .silent
+        }
+        var current = DockCurrentList.unknown
+        if subscribed == .answered {
+            switch currentList(dockPID: dockPID) {
+            case .found(let shown): current = CFEqual(shown.raw, list.raw) ? .same : .different
+            case .missing: current = .missing
+            case .noAnswer: current = .unknown
+            }
+        }
+        let isStale = DockSubscriptionHealth.isStale(subscribed: subscribed, current: current)
+        log.debug("check: subscribed list \(String(describing: subscribed), privacy: .public), current \(String(describing: current), privacy: .public), stale \(isStale)")
+        return isStale
+    }
+
     enum Selection: Sendable {
         /// Nothing selected: the pointer is not on the Dock.
         case nothing
         /// An item that is not an app icon, such as a folder or the Trash.
         case otherItem
         case app(DockItem)
+        /// The Dock says the list no longer exists: the subscription is on a dead element.
+        case listGone
     }
 
     static func selection(in list: AXElement) -> Selection {
-        guard let selected = list.value(kAXSelectedChildrenAttribute) as? [AXUIElement],
-              let first = selected.first
+        let (error, value) = list.copy(kAXSelectedChildrenAttribute)
+        if error == .invalidUIElement { return .listGone }
+        if error != .success, error != .noValue {
+            log.debug("selection read failed: \(error.rawValue)")
+        }
+        guard error == .success, let selected = value as? [AXUIElement], let first = selected.first
         else { return .nothing }
         let element = AXElement(first)
         guard element.string(kAXSubroleAttribute) == "AXApplicationDockItem",

@@ -1,6 +1,7 @@
 import AppKit
 import ApplicationServices
 import GustaveCore
+import os
 
 /// What is under the pointer in the Dock.
 enum DockHoverEvent {
@@ -29,8 +30,15 @@ struct DockHover {
 
 /// Follows the Dock's own selection, which is the icon under the pointer. The Dock reports
 /// every change through Accessibility, so there is no mouse monitor and no polling.
+///
+/// A subscription can go silent with no error, when the Dock replaces its list while keeping
+/// its process (D33, D35). Nothing reports that, so the subscription is checked whenever
+/// something else happens anyway (an app comes forward, the Space changes, the screens wake)
+/// and made again when it is on a list the Dock no longer shows.
 @MainActor
 final class DockHoverObserver {
+    nonisolated private static let log = Logger(subsystem: "io.github.0xrd.gustave", category: "dock")
+
     private let onChange: (DockHoverEvent) -> Void
 
     /// A new Dock answers Accessibility only after a moment, longer at login. The delay
@@ -40,6 +48,11 @@ final class DockHoverObserver {
     private static let attachRetryDelay: TimeInterval = 0.5
     /// After a wake or a display change the Dock may rebuild its list a moment later.
     private static let resubscribeDelay: TimeInterval = 1.0
+    /// The Dock can also rebuild its list later than that, after the new subscription: one
+    /// more check follows each wake and display change.
+    private static let settledCheckDelay: TimeInterval = 10.0
+    /// Events come in bursts, such as several apps coming forward at login.
+    private static let minimumCheckInterval: TimeInterval = 2.0
 
     private var isRunning = false
     private var observer: AXObserver?
@@ -48,7 +61,14 @@ final class DockHoverObserver {
     private var runningAppsObservation: NSKeyValueObservation?
     private var systemObservers: [(NotificationCenter, NSObjectProtocol)] = []
     private var pendingResubscribe: DispatchWorkItem?
-    private var current: DockHoverEvent = .outside
+    private var pendingCheck: DispatchWorkItem?
+    /// Moves on with each subscription, so work started for an older one is dropped.
+    private var subscriptionID = 0
+    /// True from the first try until the Dock accepts or the tries run out.
+    private var isAttaching = false
+    private var isChecking = false
+    /// In system uptime.
+    private var lastCheck: TimeInterval = 0
     private var generation = 0
     /// The generation, readable from the Dock queue, so selection reads already replaced by
     /// a newer one are skipped during a fast sweep along the Dock.
@@ -63,10 +83,11 @@ final class DockHoverObserver {
         isRunning = true
         // The Dock restarts when its settings change or it crashes. It is a UI element app,
         // for which launch and quit notifications are not reliably posted, so the list of
-        // running apps is observed instead: an event, not a poll.
+        // running apps is observed instead: an event, not a poll. An app starting or
+        // quitting is the Dock itself, or one more moment to check.
         runningAppsObservation = NSWorkspace.shared.observe(\.runningApplications) { [weak self] _, _ in
             DispatchQueue.main.async {
-                MainActor.assumeIsolated { self?.dockMayHaveChanged() }
+                MainActor.assumeIsolated { self?.checkSubscription() }
             }
         }
         // The Dock can replace its list while keeping its process, around sleep and display
@@ -80,6 +101,21 @@ final class DockHoverObserver {
                 MainActor.assumeIsolated { self?.scheduleResubscribe() }
             })
         }
+        // Nothing reports a subscription that went silent, so it is checked on events that
+        // happen in normal use, and only then: no timer (hard rule 7).
+        let workspace = NSWorkspace.shared.notificationCenter
+        let checks = [
+            NSWorkspace.didActivateApplicationNotification,
+            NSWorkspace.activeSpaceDidChangeNotification,
+            NSWorkspace.screensDidWakeNotification,
+            NSWorkspace.sessionDidBecomeActiveNotification,
+        ]
+        let checkObservers: [(NotificationCenter, NSObjectProtocol)] = checks.map { name in
+            (workspace, workspace.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { self?.checkSubscription() }
+            })
+        }
+        systemObservers += checkObservers
         attach(retriesLeft: Self.attachRetries)
     }
 
@@ -94,9 +130,10 @@ final class DockHoverObserver {
         systemObservers = []
         pendingResubscribe?.cancel()
         pendingResubscribe = nil
+        pendingCheck?.cancel()
+        pendingCheck = nil
         detach()
         attachedDockPID = nil
-        current = .outside
     }
 
     private static func dockPID() -> pid_t? {
@@ -104,8 +141,47 @@ final class DockHoverObserver {
             .first { !$0.isTerminated }?.processIdentifier
     }
 
-    private func dockMayHaveChanged() {
-        guard isRunning, Self.dockPID() != attachedDockPID else { return }
+    /// Makes the subscription again when the Dock is another process, when no subscription
+    /// exists and none is being tried, or when the Dock says the list it is on is not the
+    /// one it shows. A Dock that does not answer is left alone until the next event.
+    private func checkSubscription() {
+        guard isRunning else { return }
+        let dockPID = Self.dockPID()
+        guard dockPID == attachedDockPID else {
+            Self.log.notice("Dock process changed, subscribing")
+            attach(retriesLeft: Self.attachRetries)
+            return
+        }
+        guard let dockPID else { return }
+        guard let list else {
+            if !isAttaching {
+                Self.log.notice("no Dock subscription, subscribing")
+                attach(retriesLeft: Self.attachRetries)
+            }
+            return
+        }
+        let now = ProcessInfo.processInfo.systemUptime
+        guard !isChecking, now - lastCheck >= Self.minimumCheckInterval else { return }
+        isChecking = true
+        lastCheck = now
+        let token = subscriptionID
+        AXQueues.dock.async { [weak self] in
+            let isStale = DockProbe.isStale(list, dockPID: dockPID)
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated {
+                    guard let self else { return }
+                    self.isChecking = false
+                    guard isStale, self.isRunning, token == self.subscriptionID else { return }
+                    Self.log.notice("Dock replaced its list, subscribing again")
+                    self.resubscribe()
+                }
+            }
+        }
+    }
+
+    /// The selection on the old list means nothing now.
+    private func resubscribe() {
+        onChange(.outside)
         attach(retriesLeft: Self.attachRetries)
     }
 
@@ -117,28 +193,46 @@ final class DockHoverObserver {
                 guard let self, self.isRunning else { return }
                 self.pendingResubscribe = nil
                 self.attach(retriesLeft: Self.attachRetries)
+                self.scheduleSettledCheck()
             }
         }
         pendingResubscribe = work
         DispatchQueue.main.asyncAfter(deadline: .now() + Self.resubscribeDelay, execute: work)
     }
 
+    /// One check, once the Dock has had time to settle after a wake or a display change.
+    private func scheduleSettledCheck() {
+        pendingCheck?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            MainActor.assumeIsolated {
+                guard let self, self.isRunning else { return }
+                self.pendingCheck = nil
+                self.checkSubscription()
+            }
+        }
+        pendingCheck = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.settledCheckDelay, execute: work)
+    }
+
     /// The list is gone: subscribe to the one that replaces it.
     fileprivate func listDestroyed() {
         guard isRunning else { return }
-        report(.outside)
-        attach(retriesLeft: Self.attachRetries)
+        Self.log.notice("Dock list destroyed, subscribing again")
+        resubscribe()
     }
 
     private func attach(retriesLeft: Int) {
         detach()
+        isAttaching = true
+        let token = subscriptionID
         guard let dockPID = Self.dockPID() else {
+            // Between two Docks. The new one also shows in the list of running apps.
             attachedDockPID = nil
+            retryAttach(retriesLeft: retriesLeft - 1, token: token)
             return
         }
         attachedDockPID = dockPID
 
-        let token = generation
         // The observer lives as long as the app, so an unretained pointer is safe.
         let address = UInt(bitPattern: Unmanaged.passUnretained(self).toOpaque())
         AXQueues.dock.async { [weak self] in
@@ -146,7 +240,7 @@ final class DockHoverObserver {
             let subscription = DockProbe.subscribe(dockPID: dockPID, callback: dockNotification, refcon: refcon)
             DispatchQueue.main.async {
                 MainActor.assumeIsolated {
-                    guard let self, token == self.generation, self.isRunning else {
+                    guard let self, token == self.subscriptionID, self.isRunning else {
                         // Replaced or stopped meanwhile: leave nothing registered in the Dock.
                         if let subscription {
                             AXQueues.dock.async { DockProbe.unsubscribe(subscription) }
@@ -157,8 +251,10 @@ final class DockHoverObserver {
                         self.retryAttach(retriesLeft: retriesLeft - 1, token: token)
                         return
                     }
+                    self.isAttaching = false
                     self.observer = subscription.observer
                     self.list = subscription.list
+                    Self.log.notice("subscribed to Dock pid \(dockPID)")
                     CFRunLoopAddSource(
                         CFRunLoopGetMain(), AXObserverGetRunLoopSource(subscription.observer), .commonModes)
                 }
@@ -166,20 +262,27 @@ final class DockHoverObserver {
         }
     }
 
-    /// A few spaced tries after a Dock start, then nothing until the next change: no polling.
+    /// A few spaced tries after a Dock start, then nothing until the next event that checks
+    /// the subscription: no polling.
     private func retryAttach(retriesLeft: Int, token: Int) {
-        guard retriesLeft > 0 else { return }
+        guard retriesLeft > 0 else {
+            isAttaching = false
+            Self.log.notice("the Dock did not take the subscription, waiting for the next event")
+            return
+        }
         let attempt = Self.attachRetries - 1 - retriesLeft
         let delay = Self.attachRetryDelay * Double(1 << max(attempt, 0))
         DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
             MainActor.assumeIsolated {
-                guard let self, self.isRunning, token == self.generation else { return }
+                guard let self, self.isRunning, token == self.subscriptionID else { return }
                 self.attach(retriesLeft: retriesLeft)
             }
         }
     }
 
     private func detach() {
+        subscriptionID += 1
+        isAttaching = false
         bumpGeneration()
         if let observer {
             CFRunLoopRemoveSource(CFRunLoopGetMain(), AXObserverGetRunLoopSource(observer), .commonModes)
@@ -207,12 +310,15 @@ final class DockHoverObserver {
                     guard let self, token == self.generation else { return }
                     switch selection {
                     case .nothing:
-                        self.report(.outside)
+                        self.onChange(.outside)
                     case .otherItem:
-                        self.report(.otherItem)
+                        self.onChange(.otherItem)
                     case .app(let item):
                         // An app that is not running is just another item.
-                        self.report(self.hover(for: item, primaryHeight: primaryHeight).map(DockHoverEvent.app) ?? .otherItem)
+                        self.onChange(self.hover(for: item, primaryHeight: primaryHeight).map(DockHoverEvent.app) ?? .otherItem)
+                    case .listGone:
+                        Self.log.notice("Dock list gone at a selection read, subscribing again")
+                        self.resubscribe()
                     }
                 }
             }
@@ -248,17 +354,6 @@ final class DockHoverObserver {
     private func bumpGeneration() {
         generation += 1
         currentGeneration.set(generation)
-    }
-
-    private func report(_ event: DockHoverEvent) {
-        if case .app(let new) = event, case .app(let old) = current {
-            guard new.app.processIdentifier != old.app.processIdentifier || new.iconFrame != old.iconFrame
-            else { return }
-        } else if event.pointer == current.pointer {
-            return
-        }
-        current = event
-        onChange(event)
     }
 }
 

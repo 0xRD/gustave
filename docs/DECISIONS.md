@@ -478,6 +478,65 @@ To check on device: two quick Option+Tab presses in a row toggle twice; with Ter
 Keyboard Entry on, releasing Option closes the list; clicking the settings window closes the
 Dock panel; a Dock panel closes when its app quits.
 
+### D35. Check the Dock subscription on events, and compare hovers with the panel
+Decided 2026-11-10 at the user's request ("sometimes the hover feature on the dock stops
+working ... look at what other apps do to keep this feature working"), from a review of the
+code. Not built or run on a Mac yet: CI compiles it and runs the unit tests, the rest is the
+device list below.
+
+D33 guessed that the Dock replaces its list while keeping its process, and resubscribed 1 s
+after a wake or a display change. The hover still stops sometimes, and the code shows why it
+can:
+- The Dock can rebuild its list later than 1 s after the event, so the new subscription lands
+  on the list about to go. The destroyed notification is best effort and cannot be relied on.
+- The Dock may rebuild its list at other times, which nothing watched.
+- When the five attach tries ran out (a Dock slow to answer at login or after a wake), nothing
+  tried again until the next wake, display change or Dock restart.
+- With no Dock running at the moment of an attach, nothing was retried.
+DockDoor has the same subscription and keeps it alive with a timer: every 5 s it compares the
+Dock's pid, reads the subscribed list (an invalid element means the Dock rebuilt it) and
+compares it with the list the Dock shows now. Hard rule 7 forbids the timer, so Gustave makes
+the same three checks only when something else happens anyway: an app comes forward, an app
+starts or quits, the Space changes, the screens wake, the session becomes active, and once
+10 s after each wake or display change. At most one check every 2 s, off the main thread, two
+or three reads of the Dock. The subscription is made again only on proof (`DockSubscriptionHealth`
+in Core, tested): the list is gone, or the Dock shows another one. A Dock that does not answer
+keeps its subscription. A selection read that finds the list gone resubscribes at once. Idle
+cost is unchanged: nothing runs while nothing happens. A silent subscription now lasts until
+the next app switch instead of until Gustave restarts. Not covered: a subscription that goes
+silent while its list stays valid and current. No sign of that exists; the log below would
+show it.
+
+The observer also dropped a hover equal to the last one it reported (same app, same icon
+frame). The panel can close without the Dock reporting anything, on a click or when the Dock
+hides (D25), and the next report of the same icon was then dropped: no list for that icon
+until another icon was hovered. The comparison moved to the panel controller, against what
+the panel is doing: a repeated report is ignored only while the panel is open or a show is
+pending for that icon.
+
+The observer logs under the `dock` category: subscriptions, each reason for making one again
+(at notice level, so they are kept), and failed selection reads and check results (debug).
+Pids and system values only. To read it after a failure:
+`log show --last 1h --predicate 'subsystem == "io.github.0xrd.gustave" AND category == "dock"'`.
+
+Found in the same review and left for the user to decide:
+- `AccessibilityPermission` reads the grant once, 250 ms after the system's notification. If
+  the new state is not readable yet, Gustave keeps the old one until the next notification.
+- A Dock selection read that times out (0.3 s) counts as leaving the Dock, so one busy moment
+  in the Dock loses that hover until the pointer leaves the icon and comes back.
+- A Dock icon is matched to a running app by comparing bundle URLs. An app reached through a
+  symlink would show no list.
+- While a show is pending, any app coming forward cancels it (D25), also one the user did not
+  cause, such as a notification bringing an app forward. The icon then needs a new hover.
+- The area that keeps the panel open is the rectangle around panel and icon together, which
+  includes the part of the Dock under the panel's width. Resting on an empty part of the Dock
+  there keeps the panel open.
+To check on device: after sleep and wake, a lid close, plugging and unplugging a display,
+`killall Dock`, and a day of normal use, hovering still shows the list, or shows it again
+after one app switch, and the log names the reason. With an auto-hiding Dock: hover an icon,
+click it, bring the Dock back and hover the same icon: the list shows. Moving from the icon
+to the panel and back does not close or reload it. Idle wakeups stay at zero.
+
 ## Verified on device
 
 - 2026-11-01, macOS 26.6: codesign refuses an untrusted self-signed identity ("no identity
