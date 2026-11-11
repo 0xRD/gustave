@@ -21,8 +21,8 @@ enum DockHoverEvent {
 /// The running app whose Dock icon is under the pointer.
 struct DockHover {
     let app: NSRunningApplication
-    /// AppKit coordinates.
-    let iconFrame: Rect
+    /// AppKit coordinates. Moves to where the icon rests while an auto-hiding Dock slides (D36).
+    var iconFrame: Rect
     let edge: DockEdge
     /// Where the panel may go: the screen, below the menu bar.
     let screenFrame: Rect
@@ -320,6 +320,29 @@ final class DockHoverObserver {
                         Self.log.notice("Dock list gone at a selection read, subscribing again")
                         self.resubscribe()
                     }
+                }
+            }
+        }
+    }
+
+    /// Reads the icon under the pointer again, without reporting it: an auto-hiding Dock
+    /// reports an icon while still sliding in, so its frame then is not where it rests (D36).
+    /// Nil when nothing usable is selected or no subscription exists.
+    func readHover(_ completion: @escaping @MainActor (DockHover?) -> Void) {
+        guard let list, let primary = NSScreen.screens.first else {
+            completion(nil)
+            return
+        }
+        let primaryHeight = primary.frame.height
+        AXQueues.dock.async { [weak self] in
+            let selection = DockProbe.selection(in: list)
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated {
+                    guard let self, case .app(let item) = selection else {
+                        completion(nil)
+                        return
+                    }
+                    completion(self.hover(for: item, primaryHeight: primaryHeight))
                 }
             }
         }
