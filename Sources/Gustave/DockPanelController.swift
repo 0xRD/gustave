@@ -21,6 +21,9 @@ final class DockPanelController {
     private static let openOffset = 6.0
     /// Slack around the icon, so the pointer can cross to the panel without it closing.
     private static let iconSlack = 6.0
+    /// How often, and how many times at most, an icon found moving is read again.
+    private static let followInterval: TimeInterval = 0.1
+    private static let followReads = 8
 
     private let panel = FloatingPanel()
     private let highlight = DockPanelHover()
@@ -32,6 +35,8 @@ final class DockPanelController {
     }
 
     private var hover: DockHover?
+    /// True while the Dock's last report is the hovered icon: the pointer is on it.
+    private var dockReportsIcon = false
     /// True from the moment the panel opens until it starts closing, so a fade-out still on
     /// screen counts as closed.
     private var isPresented = false
@@ -86,13 +91,20 @@ final class DockPanelController {
     }
 
     private func dockPointerChanged(_ event: DockHoverEvent) {
+        if case .app = event {
+            dockReportsIcon = true
+        } else {
+            dockReportsIcon = false
+        }
         // The Dock can report again the icon already being handled, for example when the
         // pointer comes back from the panel. Compared with what the panel is doing, not
         // with the last report: after the panel closed for another reason, such as a click
         // or a Dock that hid, the same icon must open it again.
-        if case .app(let new) = event, let hover, isPresented || pendingShow != nil,
-           new.app.processIdentifier == hover.app.processIdentifier, new.iconFrame == hover.iconFrame {
+        // An auto-hiding Dock that hides and comes back reports the icon again while it is
+        // still sliding in: the panel keeps the place where the icon rests (D36).
+        if case .app(let new) = event, isPresented || pendingShow != nil, isSameIcon(new) {
             cancelClose()
+            settle(on: new.iconFrame)
             return
         }
         cancelShow()
@@ -119,6 +131,8 @@ final class DockPanelController {
                 place()
             } else {
                 loadWindows(for: newHover)
+                // The open panel can meet a Dock coming back, whose icons are still sliding.
+                followIcon(readsLeft: Self.followReads)
             }
             return
         }
@@ -127,7 +141,7 @@ final class DockPanelController {
                 guard let self, let hover = self.hover, hover.app.processIdentifier == newHover.app.processIdentifier
                 else { return }
                 self.cancelShow()
-                self.loadWindows(for: hover)
+                self.showAfterReading(hover)
             }
         }
         pendingShow = work
@@ -164,6 +178,61 @@ final class DockPanelController {
             NSWorkspace.shared.notificationCenter.removeObserver(token)
         }
         pendingShowObservers = []
+    }
+
+    /// The icon is read again first: the frame reported at the start of the delay can be
+    /// that of a Dock still sliding in, and the panel would then cover the Dock (D36).
+    private func showAfterReading(_ hover: DockHover) {
+        let pid = hover.app.processIdentifier
+        observer.readHover { [weak self] read in
+            guard let self, let current = self.hover, current.app.processIdentifier == pid,
+                  self.pendingShow == nil, self.pendingClose == nil, !self.isPresented
+            else { return }
+            let moved = read.map { self.isSameIcon($0) && self.settle(on: $0.iconFrame) } ?? false
+            self.loadWindows(for: self.hover ?? current)
+            if moved {
+                self.followIcon(readsLeft: Self.followReads)
+            }
+        }
+    }
+
+    /// The same running app on the same screen, wherever the Dock reports its icon.
+    private func isSameIcon(_ new: DockHover) -> Bool {
+        guard let hover else { return false }
+        return new.app.processIdentifier == hover.app.processIdentifier && new.screenFrame == hover.screenFrame
+            && new.edge == hover.edge
+    }
+
+    /// Moves the anchor to `reported` unless that is the Dock sliding toward its edge.
+    /// True when the anchor moved.
+    @discardableResult
+    private func settle(on reported: Rect) -> Bool {
+        guard var hover else { return false }
+        let settled = DockAnchor.settled(current: hover.iconFrame, reported: reported, edge: hover.edge)
+        guard settled != hover.iconFrame else { return false }
+        hover.iconFrame = settled
+        self.hover = hover
+        if isPresented {
+            place()
+        }
+        return true
+    }
+
+    /// Spaced reads of the icon, ended by the first one that finds it at rest, so a Dock at
+    /// rest costs one read and nothing runs afterwards (hard rule 7).
+    private func followIcon(readsLeft: Int) {
+        guard readsLeft > 0, let pid = hover?.app.processIdentifier else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.followInterval) { [weak self] in
+            MainActor.assumeIsolated {
+                guard let self, self.isPresented, self.hover?.app.processIdentifier == pid else { return }
+                self.observer.readHover { [weak self] read in
+                    guard let self, self.isPresented, let read, self.isSameIcon(read),
+                          self.settle(on: read.iconFrame)
+                    else { return }
+                    self.followIcon(readsLeft: readsLeft - 1)
+                }
+            }
+        }
     }
 
     private func loadWindows(for hover: DockHover) {
@@ -333,6 +402,7 @@ final class DockPanelController {
         removeDismissal()
         fadeOut()
         hover = nil
+        dockReportsIcon = false
         highlight.row = nil
         content = DockPanelContent()
     }
@@ -418,17 +488,20 @@ final class DockPanelController {
         dismissObservers = []
     }
 
-    /// On the panel, on the icon, or in the gap between them, so a slow move from the icon
-    /// to the panel does not close it on the way.
+    /// On the icon while the Dock reports it, on the panel, or on the way between them, so a slow move from the icon to the
+    /// panel does not close it on the way. The icon's frame alone does not count: once the
+    /// Dock stops reporting it, the pointer left or the Dock hid. Resting beside the panel over the Dock, or where a Dock
+    /// that hid used to be, lets it close (D36).
     private func isPointerInside() -> Bool {
+        guard isPresented, let panelFrame = requestedFrame, let hover else { return false }
         let pointer = NSEvent.mouseLocation
-        // While closed, only the icon counts: the window keeps its old frame after closing.
-        let panelFrame = isPresented ? (requestedFrame ?? panel.frame) : .null
-        guard let icon = hover?.iconFrame else { return panelFrame.contains(pointer) }
-        let slack = Self.iconSlack
-        let iconFrame = CGRect(x: icon.x, y: icon.y, width: icon.width, height: icon.height)
-            .insetBy(dx: -slack, dy: -slack)
-        return panelFrame.union(iconFrame).contains(pointer)
+        if dockReportsIcon {
+            return true
+        }
+        let panel = Rect(panelFrame)
+        return DockPanelZone.contains(
+            Point(x: pointer.x, y: pointer.y), panel: panel, icon: hover.iconFrame, edge: hover.edge,
+            slack: Self.iconSlack)
     }
 
     private func pointerMovedElsewhere() {

@@ -537,6 +537,39 @@ after one app switch, and the log names the reason. With an auto-hiding Dock: ho
 click it, bring the Dock back and hover the same icon: the list shows. Moving from the icon
 to the panel and back does not close or reload it. Idle wakeups stay at zero.
 
+### D36. Anchor the panel where the Dock rests, and a narrower area keeping it open
+Decided 2026-11-11 at the user's request, from a screenshot of the panel covering the Dock's
+icons with an auto-hiding Dock ("the gustave tab hides the dock when the dock goes away and
+comes back rapidly", and "the tab can feel sticky"). Found by reading the code; not measured
+with Accessibility on a Mac yet.
+
+Covering the Dock: the panel is placed from the icon frame the Dock reports with its
+selection. An auto-hiding Dock reports an icon while it is still sliding in, and reports
+nothing more once it stops, so the panel stayed at the half-shown position. Since D35 a
+repeated report of the same app with another frame also moved an open panel down to it.
+Now:
+- The icon is read again when the hover delay ends, just before the windows are loaded.
+- While an icon is found moving, it is read again every 0.1 s, at most 8 times, and the
+  first read that finds it at rest ends it. Also once after the open panel switches to
+  another app. Nothing runs when nothing moves (hard rule 7).
+- For the same app on the same screen, a frame closer to the Dock's edge than the one held is
+  a Dock in motion and is ignored (`DockAnchor` in Core, tested); a frame further in replaces
+  it.
+
+Sticky: the area that kept the panel open was the rectangle around the panel and the icon,
+which with a wide panel includes the Dock beside the icon, and, once an auto-hiding Dock hid,
+the empty place where it was. Since the Dock reports nothing there, nothing closed it until
+the pointer left that rectangle. Now the area is the panel, the icon while the Dock still
+reports it, and a corridor the icon's width from the icon's far side to the panel
+(`DockPanelZone` in Core, tested). A closed panel has no area.
+
+To check on device, with auto-hide on: hover an icon as the Dock slides in, with the default
+delay and with 0 s: the panel sits above the Dock. With the panel open, move onto it, let the
+Dock hide, move back down to bring it back: the panel stays above the Dock. Moving slowly from
+the icon to the panel does not close it; resting beside the panel over the Dock, or at the
+bottom of the screen after the Dock hid, closes it after 0.25 s. Same with left and right
+Docks. Idle wakeups stay at zero.
+
 ## Verified on device
 
 - 2026-11-01, macOS 26.6: codesign refuses an untrusted self-signed identity ("no identity

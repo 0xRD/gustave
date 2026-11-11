@@ -83,6 +83,9 @@ Status: [ ] todo, [~] in progress, [x] done.
     restarting Gustave; Safari windows with element ids above 1000 are found.
   - Open (D35): the Dock subscription is checked on events and made again when its list was
     replaced; a repeated hover is compared with the panel. Device checks at the end of D35.
+  - Open (D36): with an auto-hiding Dock, the panel never covers the Dock, also when the Dock
+    hides and comes back quickly; the panel closes when the pointer rests beside it over the
+    Dock or where a hidden Dock was. Device checks at the end of D36.
 
 ## M4. Option+Tab switcher (F2)
 
