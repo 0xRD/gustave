@@ -86,6 +86,7 @@ Status: [ ] todo, [~] in progress, [x] done.
   - Open (D36): with an auto-hiding Dock, the panel never covers the Dock, also when the Dock
     hides and comes back quickly; the panel closes when the pointer rests beside it over the
     Dock or where a hidden Dock was. Device checks at the end of D36.
+  - Open (D37): an app with a single window shows no panel. Device checks at the end of D37.
 
 ## M4. Option+Tab switcher (F2)
 

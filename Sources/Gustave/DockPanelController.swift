@@ -252,13 +252,13 @@ final class DockPanelController {
             DispatchQueue.main.async {
                 MainActor.assumeIsolated {
                     guard let self, token == self.generation else { return }
-                    if let windows, !windows.isEmpty {
+                    if let windows, self.shows(windows, of: pid) {
                         self.show(windows, of: hover.app)
                     } else if windows == nil {
                         // The app does not answer: no list, rather than the last app's rows.
                         self.hide()
                     } else if self.content.app?.processIdentifier != pid {
-                        // Nothing here yet; other Spaces may still bring windows.
+                        // Nothing to list yet; other Spaces may still bring windows.
                         self.clearPanel()
                     }
                 }
@@ -277,7 +277,7 @@ final class DockPanelController {
                     MainActor.assumeIsolated {
                         guard let self, token == self.generation else { return }
                         let all = windows + others
-                        if all.isEmpty {
+                        if !self.shows(all, of: pid) {
                             self.hide()
                         } else if !others.isEmpty || !self.isPresented {
                             self.show(all, of: hover.app)
@@ -286,6 +286,12 @@ final class DockPanelController {
                 }
             }
         }
+    }
+
+    /// A single window opens no panel (D37).
+    private func shows(_ windows: [AppWindow], of pid: pid_t) -> Bool {
+        let isShowingApp = isPresented && content.app?.processIdentifier == pid
+        return DockPanelContentRule.shows(windowCount: windows.count, alreadyShowingApp: isShowingApp)
     }
 
     private func show(_ windows: [AppWindow], of app: NSRunningApplication) {

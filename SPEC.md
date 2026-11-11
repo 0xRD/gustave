@@ -42,7 +42,9 @@ the icon. One row per standard window, in the style of DockDoor's compact list.
   elsewhere and when the current Space changes.
 - Windows on every Space are listed, including full screen ones (D17). Windows on the
   current Space come first.
-- Apps with no standard window show no panel.
+- Apps with no standard window, or only one, show no panel: clicking the icon already
+  brings a single window (D37). An open panel stays open when closing a window from it
+  leaves one.
 - Works with Dock at bottom, left, right, with auto-hide, and with multiple displays.
 - Never steals focus until a row is clicked (non-activating panel).
 

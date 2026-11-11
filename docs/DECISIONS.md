@@ -572,6 +572,17 @@ Docks. Idle wakeups stay at zero.
 
 Tried by the user on 2026-11-11 with auto-hide on: works.
 
+### D37. No panel for an app with a single window
+Decided 2026-11-11 at the user's request ("whenever an app only has a single window, there
+is no need for the gustave hover feature to appear"). Changes SPEC F1. The count is the whole
+list: windows on every Space, minimized ones included, so the panel can still open once the
+other-Spaces search finds a second window. The rule applies when the panel would open or
+switch to another app; an open panel for the same app keeps showing its last window after
+one is closed or minimized from it, so it does not vanish under the pointer
+(`DockPanelContentRule` in Core, tested). To check on device: hovering Terminal with one
+window shows nothing; with two windows, also on different Spaces, the list shows; closing
+one of two from the panel leaves it open with one row.
+
 ## Verified on device
 
 - 2026-11-01, macOS 26.6: codesign refuses an untrusted self-signed identity ("no identity
