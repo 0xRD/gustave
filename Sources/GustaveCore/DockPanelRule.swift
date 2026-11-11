@@ -24,3 +24,13 @@ public enum DockPanelRule {
         }
     }
 }
+
+/// Whether a list of windows is worth a panel (D37).
+public enum DockPanelContentRule {
+    /// A single window needs no list: clicking the icon already brings it. An open panel for
+    /// the same app keeps showing its list, so closing one of two windows from it does not
+    /// pull the panel from under the pointer.
+    public static func shows(windowCount: Int, alreadyShowingApp: Bool) -> Bool {
+        alreadyShowingApp ? windowCount > 0 : windowCount > 1
+    }
+}
