@@ -81,6 +81,8 @@ Status: [ ] todo, [~] in progress, [x] done.
     two displays, a frozen app, a hostile title, Stage Manager.
   - Open (D33): hover still works after sleep and wake and after a display change, without
     restarting Gustave; Safari windows with element ids above 1000 are found.
+  - Open (D35): the Dock subscription is checked on events and made again when its list was
+    replaced; a repeated hover is compared with the panel. Device checks at the end of D35.
 
 ## M4. Option+Tab switcher (F2)
 
