@@ -570,6 +570,8 @@ the icon to the panel does not close it; resting beside the panel over the Dock,
 bottom of the screen after the Dock hid, closes it after 0.25 s. Same with left and right
 Docks. Idle wakeups stay at zero.
 
+Tried by the user on 2026-11-11 with auto-hide on: works.
+
 ## Verified on device
 
 - 2026-11-01, macOS 26.6: codesign refuses an untrusted self-signed identity ("no identity
