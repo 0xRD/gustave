@@ -621,10 +621,9 @@ Update path:
 - `AccessibilityPermission` read the grant only after the system's notification (noted in
   D35). It is now read again whenever the settings window shows or comes forward.
 
-CI ran four times per release on macOS runners, which are billed at ten times their run
-time: on the branch push, on the pull request, on main and on the tag. It now runs once per
-pull request and once on main, not on tags or text-only changes, and a newer push cancels
-the run it replaces.
+CI ran four times per release, each on a macOS runner: on the branch push, on the pull
+request, on main and on the tag. It now runs once per pull request and once on main, not on
+tags or text-only changes, and a newer push cancels the run it replaces.
 
 Looked at and left as they are: the scroll tap on the main thread (M5.0), because the event
 path cannot be exercised without a person scrolling; icons read again on each Tab press in

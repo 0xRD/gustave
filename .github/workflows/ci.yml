@@ -1,8 +1,8 @@
 name: CI
 
-# macOS runners are billed at ten times their run time, so nothing runs twice: a pull
-# request is checked once, main once after the merge, and tags and text-only changes not
-# at all. A newer push to the same branch cancels the run it replaces.
+# Nothing runs twice: a pull request is checked once, main once after the merge, and tags
+# and text-only changes not at all. A newer push to the same branch cancels the run it
+# replaces.
 on:
   push:
     branches: [main]
