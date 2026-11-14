@@ -136,9 +136,20 @@ final class DockHoverObserver {
         attachedDockPID = nil
     }
 
-    private static func dockPID() -> pid_t? {
-        NSRunningApplication.runningApplications(withBundleIdentifier: DockProbe.dockBundleIdentifier)
-            .first { !$0.isTerminated }?.processIdentifier
+    /// The Dock's process. The lookup by bundle identifier comes back empty for a moment
+    /// each time any app starts or quits, which are the very moments this is asked (D38).
+    /// So the Dock already subscribed to is asked first, by pid, and the list of running
+    /// apps, which does not have that gap, finds a new one.
+    private func dockPID() -> pid_t? {
+        if let attachedDockPID, let attached = NSRunningApplication(processIdentifier: attachedDockPID),
+           Self.isRunningDock(attached) {
+            return attachedDockPID
+        }
+        return NSWorkspace.shared.runningApplications.first(where: Self.isRunningDock)?.processIdentifier
+    }
+
+    private static func isRunningDock(_ app: NSRunningApplication) -> Bool {
+        app.bundleIdentifier == DockProbe.dockBundleIdentifier && !app.isTerminated
     }
 
     /// Makes the subscription again when the Dock is another process, when no subscription
@@ -146,7 +157,7 @@ final class DockHoverObserver {
     /// one it shows. A Dock that does not answer is left alone until the next event.
     private func checkSubscription() {
         guard isRunning else { return }
-        let dockPID = Self.dockPID()
+        let dockPID = dockPID()
         guard dockPID == attachedDockPID else {
             Self.log.notice("Dock process changed, subscribing")
             attach(retriesLeft: Self.attachRetries)
@@ -214,9 +225,15 @@ final class DockHoverObserver {
         DispatchQueue.main.asyncAfter(deadline: .now() + Self.settledCheckDelay, execute: work)
     }
 
-    /// The list is gone: subscribe to the one that replaces it.
-    fileprivate func listDestroyed() {
-        guard isRunning else { return }
+    /// The list is gone: subscribe to the one that replaces it. The Dock also posts this for
+    /// each icon that leaves the list, as when an app quits; the list itself is still there
+    /// then, and the subscription with it (D38).
+    fileprivate func elementDestroyed(_ element: AXUIElement) {
+        guard isRunning, let list else { return }
+        guard CFEqual(element, list.raw) else {
+            Self.log.debug("a Dock item was destroyed, the list stays")
+            return
+        }
         Self.log.notice("Dock list destroyed, subscribing again")
         resubscribe()
     }
@@ -225,7 +242,7 @@ final class DockHoverObserver {
         detach()
         isAttaching = true
         let token = subscriptionID
-        guard let dockPID = Self.dockPID() else {
+        guard let dockPID = dockPID() else {
             // Between two Docks. The new one also shows in the list of running apps.
             attachedDockPID = nil
             retryAttach(retriesLeft: retriesLeft - 1, token: token)
@@ -389,7 +406,7 @@ private func dockNotification(
     let isDestroyed = (notification as String) == kAXUIElementDestroyedNotification
     MainActor.assumeIsolated {
         if isDestroyed {
-            hoverObserver.listDestroyed()
+            hoverObserver.elementDestroyed(element)
         } else {
             hoverObserver.selectionChanged()
         }

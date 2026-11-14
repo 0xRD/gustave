@@ -583,6 +583,55 @@ one is closed or minimized from it, so it does not vanish under the pointer
 window shows nothing; with two windows, also on different Spaces, the list shows; closing
 one of two from the panel leaves it open with one row.
 
+### D38. Audit: the Dock lookup that comes back empty, and the update path
+Decided 2026-11-14 at the user's request (an audit of security, features, interface and cost,
+with the update process named). Found in the log of an instance that had run for three days,
+then reproduced and fixed on device (macOS 26.6).
+
+The Dock's process had not changed since October, yet the log held "Dock process changed,
+subscribing" 42 times and "Dock list destroyed, subscribing again" 26 times. Two causes:
+- `NSRunningApplication.runningApplications(withBundleIdentifier:)` comes back empty for a
+  moment each time any app starts or quits. A scratch program observing the list of running
+  apps saw it empty for the Dock on about one change in four, while
+  `NSWorkspace.shared.runningApplications` and `NSRunningApplication(processIdentifier:)`
+  still had the Dock. D35 checks the subscription on exactly those changes, so the check took
+  the gap for a Dock that quit: it dropped the subscription and tried again 0.5 s later. No
+  hover was seen in between. The Dock already subscribed to is now asked by pid first, and a
+  new Dock is found in the list of running apps.
+- The Dock posts `kAXUIElementDestroyedNotification` to the list's observer for each icon
+  that leaves the list, as when an app quits, not only for the list. Each one counted as the
+  list going: the panel was told the pointer had left, so an open panel could close under a
+  resting pointer because another app quit, and the subscription was made again. The
+  notification now counts only when its element is the list.
+Checked on device: starting and quitting Calculator four times logged four "a Dock item was
+destroyed, the list stays" and no new subscription, where the build before logged a new
+subscription each time; `killall Dock` was followed by a subscription to the new process
+0.6 s later. Idle stays at 0.0 percent CPU and 0 wakeups.
+
+Update path:
+- The README told source users to copy the new build over the old one with `cp -R`. That
+  rewrites the running program's file in place: macOS kills the running copy and can refuse
+  to start the new one until a restart. `scripts/install.sh` stops the copy running from
+  /Applications, replaces the bundle as a whole and starts it again if it was running.
+- `scripts/release.sh` built whatever was checked out. A clone 13 commits behind would have
+  published old code under a new version. It now refuses unless HEAD is main and level with
+  origin/main.
+- Homebrew (7.0) quits a running app on upgrade and opens it again itself, so the cask
+  needs nothing for that.
+- `AccessibilityPermission` read the grant only after the system's notification (noted in
+  D35). It is now read again whenever the settings window shows or comes forward.
+
+CI ran four times per release, each on a macOS runner: on the branch push, on the pull
+request, on main and on the tag. It now runs once per pull request and once on main, not on
+tags or text-only changes, and a newer push cancels the run it replaces.
+
+Looked at and left as they are: the scroll tap on the main thread (M5.0), because the event
+path cannot be exercised without a person scrolling; icons read again on each Tab press in
+the switcher; a panel that can flash when the pointer leaves the icon while the windows are
+still being read; setting descriptions that wrap earlier than they need to. Removing the
+quarantine mark in the cask would spare the Open Anyway step after each upgrade, and is the
+user's call: it bypasses Gatekeeper for everyone who installs from the tap.
+
 ## Verified on device
 
 - 2026-11-01, macOS 26.6: codesign refuses an untrusted self-signed identity ("no identity

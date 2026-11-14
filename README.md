@@ -47,7 +47,7 @@ cd gustave
 scripts/make-cert.sh     # once per Mac, see below
 scripts/build-app.sh     # builds and signs build/Gustave.app
 scripts/verify.sh        # optional: the security checks
-cp -R build/Gustave.app /Applications/
+scripts/install.sh       # puts it in /Applications
 open /Applications/Gustave.app
 ```
 
@@ -118,11 +118,20 @@ They grant nothing beyond Accessibility. The reasoning for each is in
 
 ## Update
 
-With Homebrew, `brew upgrade --cask gustave`. From source:
+With Homebrew, `brew upgrade --cask gustave`. Homebrew quits Gustave, replaces it and opens
+it again. macOS treats each release as a new download, so it may ask once more for Open
+Anyway in System Settings, Privacy & Security; the Accessibility permission and Open at
+login carry over.
+
+From source:
 
 ```sh
-git pull && scripts/build-app.sh && cp -R build/Gustave.app /Applications/
+git pull && scripts/build-app.sh && scripts/install.sh
 ```
+
+`install.sh` stops the running copy, replaces the app as a whole and starts it again. Do not
+copy the new build over the old one with `cp -R`: that rewrites the running program in
+place, and macOS kills it and can refuse to start the new one.
 
 A source build is signed with your own certificate and a Homebrew one with the project's,
 so switching between them needs the Accessibility permission granted once more.
@@ -164,7 +173,7 @@ scripts/check.sh         # release build with zero warnings, unit tests
 | `CLAUDE.md`, `docs/KICKOFF_PROMPT.md` | Rules and workflow for Claude Code, which wrote most of the code |
 | `Sources/GustaveCore` | Pure logic, unit tested |
 | `Sources/Gustave` | AppKit, SwiftUI and Accessibility glue |
-| `scripts/` | Signing, build, verification, quality gate and release (`release.sh`) |
+| `scripts/` | Signing, build, install (`install.sh`), verification, quality gate and release (`release.sh`) |
 
 ## Acknowledgements
 
