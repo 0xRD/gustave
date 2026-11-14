@@ -8,6 +8,7 @@ import SwiftUI
 final class SettingsWindowController: NSObject, NSWindowDelegate {
     private let window: NSWindow
     private let launchAtLogin = LaunchAtLogin()
+    private let permission: AccessibilityPermission
 
     init(
         store: SettingsStore,
@@ -24,6 +25,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
                 launchAtLogin: launchAtLogin
             )
         ))
+        self.permission = permission
         super.init()
         window.title = "Gustave"
         // The canvas runs under the title bar, as in Hector; the window keeps its own chrome.
@@ -38,6 +40,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
 
     func show() {
         launchAtLogin.refresh()
+        permission.refresh()
         if NSApp.activationPolicy() != .regular {
             NSApp.setActivationPolicy(.regular)
             NSApp.mainMenu = Self.makeMenu()
@@ -46,9 +49,11 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         window.makeKeyAndOrderFront(nil)
     }
 
-    /// The user may have changed the login item in System Settings while the window was open.
+    /// The user may have changed the login item or the permission in System Settings while
+    /// the window was open.
     func windowDidBecomeKey(_ notification: Notification) {
         launchAtLogin.refresh()
+        permission.refresh()
     }
 
     func windowWillClose(_ notification: Notification) {

@@ -14,6 +14,12 @@ if [[ -n "$(git status --porcelain)" ]]; then
     print -u2 "release: the working tree has uncommitted changes"
     exit 1
 fi
+# A release is cut from what is on GitHub's main, never from a branch or a stale clone.
+git fetch --quiet --tags origin main
+if [[ "$(git rev-parse --abbrev-ref HEAD)" != "main" || "$(git rev-parse HEAD)" != "$(git rev-parse origin/main)" ]]; then
+    print -u2 "release: check out main and bring it level with origin/main first"
+    exit 1
+fi
 if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
     print -u2 "release: $tag already exists; bump CFBundleShortVersionString first"
     exit 1

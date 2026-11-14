@@ -41,7 +41,13 @@ final class AccessibilityPermission: ObservableObject {
         }
     }
 
-    private func refresh() {
-        isGranted = AXIsProcessTrusted()
+    /// Also read whenever the settings window shows or comes forward: the one read after the
+    /// system's notification can come too early, and the window must never say "Needed"
+    /// while System Settings says allowed.
+    func refresh() {
+        let granted = AXIsProcessTrusted()
+        if granted != isGranted {
+            isGranted = granted
+        }
     }
 }

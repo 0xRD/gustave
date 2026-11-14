@@ -87,6 +87,8 @@ Status: [ ] todo, [~] in progress, [x] done.
     hides and comes back quickly; the panel closes when the pointer rests beside it over the
     Dock or where a hidden Dock was. Device checks at the end of D36.
   - Open (D37): an app with a single window shows no panel. Device checks at the end of D37.
+  - Done on device (D38, 2026-11-14): the subscription survives apps starting and quitting,
+    and a Dock restart is followed.
 
 ## M4. Option+Tab switcher (F2)
 
@@ -119,6 +121,8 @@ Status: [ ] todo, [~] in progress, [x] done.
 - [~] M5.3 Launch at login, silent start, final settings polish.
 - [x] M5.4 README update, release checklist, checksummed GitHub release, optional
   Homebrew tap cask (self-signed, build from source stays primary).
+  - Done (D38): `scripts/install.sh` for source installs and updates; `release.sh` only
+    releases main as it is on GitHub.
 - [ ] M5.5 When the repository is public: sign tagged releases in GitHub Actions with a
   dedicated release certificate stored as a secret (see `docs/DECISIONS.md`, D10).
   - Accept: a tag produces a signed build, `scripts/verify.sh` passes on it, and the
